@@ -5,25 +5,27 @@ const IncentiveRule = require('../models/IncentiveRule');
 
 const calculateExecutiveIncentive = async (executiveId, month, year) => {
   try {
-    const target = await Target.findOne({ executive: executiveId, month, year });
-    const targetQty = target ? target.targetCards : 100;
+    const target = await Target.findOne({ executive: executiveId, month: Number(month), year: Number(year) });
+    const targetQty = target ? target.targetCards : 0;
 
     // Start of month & end of month dates
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const startDate = new Date(year, Number(month) - 1, 1, 0, 0, 0);
+    const endDate = new Date(year, Number(month), 0, 23, 59, 59);
 
-    // Find all completed/approved orders placed by this executive in the month
+    // Find all valid non-cancelled orders placed by this executive in the month
     const orders = await Order.find({
       executive: executiveId,
-      status: { $in: ['Approved', 'Stock Deducted', 'Invoice Generated', 'Payment Completed', 'Printing', 'NFC Configuration', 'Delivery', 'Completed'] },
+      status: { $ne: 'Cancelled' },
       createdAt: { $gte: startDate, $lte: endDate },
     });
 
     let totalSold = 0;
     orders.forEach((order) => {
-      order.items.forEach((item) => {
-        totalSold += item.quantity;
-      });
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((item) => {
+          totalSold += Number(item.quantity || 0);
+        });
+      }
     });
 
     // Fetch active incentive rules
@@ -36,20 +38,20 @@ const calculateExecutiveIncentive = async (executiveId, month, year) => {
     ];
 
     let earnedAmount = 0;
-    const extraSold = Math.max(0, totalSold - targetQty);
+    const extraSold = targetQty > 0 ? Math.max(0, totalSold - targetQty) : totalSold;
 
     if (extraSold > 0) {
-      // Calculate slab by slab for quantity beyond target
-      // Or calculate based on totalSold range
-      let remainingExtra = extraSold;
-      let currentQty = targetQty;
-
       for (let i = 0; i < slabs.length; i++) {
         const slab = slabs[i];
         if (slab.ratePerCard <= 0) continue;
 
-        if (totalSold >= slab.minQty) {
-          const countInThisSlab = Math.min(totalSold, slab.maxQty) - Math.max(targetQty, slab.minQty - 1);
+        const slabMin = slab.minQty;
+        const slabMax = slab.maxQty === undefined || slab.maxQty === null ? Infinity : slab.maxQty;
+
+        if (totalSold >= slabMin) {
+          const startCount = Math.max(targetQty, slabMin - 1);
+          const endCount = Math.min(totalSold, slabMax);
+          const countInThisSlab = endCount - startCount;
           if (countInThisSlab > 0) {
             earnedAmount += countInThisSlab * slab.ratePerCard;
           }
@@ -58,19 +60,20 @@ const calculateExecutiveIncentive = async (executiveId, month, year) => {
     }
 
     // Update or create Incentive record
-    let incentive = await Incentive.findOne({ executive: executiveId, month, year });
+    let incentive = await Incentive.findOne({ executive: executiveId, month: Number(month), year: Number(year) });
     if (incentive) {
       incentive.totalSold = totalSold;
       incentive.targetQty = targetQty;
       incentive.extraSold = extraSold;
       incentive.earnedAmount = earnedAmount;
+      if (target) incentive.target = target._id;
       await incentive.save();
     } else {
       incentive = await Incentive.create({
         executive: executiveId,
         target: target ? target._id : null,
-        month,
-        year,
+        month: Number(month),
+        year: Number(year),
         totalSold,
         targetQty,
         extraSold,
@@ -79,7 +82,7 @@ const calculateExecutiveIncentive = async (executiveId, month, year) => {
       });
     }
 
-    if (target && totalSold >= targetQty && target.status !== 'Achieved') {
+    if (target && targetQty > 0 && totalSold >= targetQty && target.status !== 'Achieved') {
       target.status = 'Achieved';
       await target.save();
     }
@@ -87,7 +90,12 @@ const calculateExecutiveIncentive = async (executiveId, month, year) => {
     return incentive;
   } catch (error) {
     console.error('[IncentiveCalculator Error]', error.message);
-    throw error;
+    return {
+      totalSold: 0,
+      targetQty: 0,
+      extraSold: 0,
+      earnedAmount: 0,
+    };
   }
 };
 

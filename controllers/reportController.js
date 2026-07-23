@@ -6,6 +6,7 @@ const Payment = require('../models/Payment');
 const Target = require('../models/Target');
 const Incentive = require('../models/Incentive');
 const Product = require('../models/Product');
+const { calculateExecutiveIncentive } = require('../services/incentiveCalculator');
 
 // @desc Comprehensive Analytics & Dashboard Report Data
 // @route GET /api/reports/dashboard
@@ -115,13 +116,22 @@ const getExecutiveReport = async (req, res, next) => {
 
     const executives = await User.find({ role: 'executive', status: 'active' }).select('name email phone avatar');
 
+    const startDate = new Date(year, month - 1, 1, 0, 0, 0);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
     const reportData = await Promise.all(
       executives.map(async (exec) => {
+        // Auto-recalculate incentive so cards sold & extra cards are 100% up to date!
+        const incentive = await calculateExecutiveIncentive(exec._id, month, year);
         const target = await Target.findOne({ executive: exec._id, month, year });
-        const incentive = await Incentive.findOne({ executive: exec._id, month, year });
 
         const clientCount = await Client.countDocuments({ assignedExecutive: exec._id });
-        const orders = await Order.find({ executive: exec._id, status: { $ne: 'Cancelled' } });
+        const orders = await Order.find({
+          executive: exec._id,
+          status: { $ne: 'Cancelled' },
+          createdAt: { $gte: startDate, $lte: endDate },
+        });
+
         const salesTotal = orders.reduce((sum, o) => sum + o.grandTotal, 0);
 
         return {

@@ -157,6 +157,11 @@ const createOrder = async (req, res, next) => {
       link: '/orders',
     });
 
+    // Auto-recalculate executive incentive & card count
+    const orderMonth = new Date(order.createdAt).getMonth() + 1;
+    const orderYear = new Date(order.createdAt).getFullYear();
+    await calculateExecutiveIncentive(execId, orderMonth, orderYear);
+
     res.status(201).json({ success: true, order });
   } catch (error) {
     next(error);
