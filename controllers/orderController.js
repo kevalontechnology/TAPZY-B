@@ -79,7 +79,6 @@ const getOrderById = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
     }
 
-    // Fetch payments & invoice for full order detail modal
     const payments = await Payment.find({ order: order._id });
     const invoice = await Invoice.findOne({ order: order._id });
 
@@ -216,17 +215,20 @@ const updateOrderStatus = async (req, res, next) => {
         }
       }
 
-      // Record Refund if payment was collected or refund details provided
+      // Record Refund if payment details provided
       if (refundDetails) {
+        const clientIdVal = order.client?._id || order.client;
+        const execIdVal = order.executive?._id || order.executive || req.user._id;
+
         await Payment.create({
           order: order._id,
-          client: order.client._id,
+          client: clientIdVal,
+          executive: execIdVal,
           amount: Number(refundDetails.amount || order.grandTotal),
           method: refundDetails.method || 'Bank Transfer',
           transactionId: refundDetails.transactionId || `REF-${Date.now()}`,
           notes: refundDetails.notes || 'Order cancellation refund processed',
           status: 'Verified',
-          createdBy: req.user._id,
         });
       }
 
@@ -296,9 +298,12 @@ const updateOrderStatus = async (req, res, next) => {
     const updatedOrder = await order.save();
 
     // 3. ALWAYS Recalculate Executive Monthly Target & Incentive on status change (especially Cancellation)
-    const orderMonth = new Date(order.createdAt).getMonth() + 1;
-    const orderYear = new Date(order.createdAt).getFullYear();
-    await calculateExecutiveIncentive(order.executive._id, orderMonth, orderYear);
+    const execIdToRecalc = order.executive?._id || order.executive;
+    if (execIdToRecalc) {
+      const orderMonth = new Date(order.createdAt).getMonth() + 1;
+      const orderYear = new Date(order.createdAt).getFullYear();
+      await calculateExecutiveIncentive(execIdToRecalc, orderMonth, orderYear);
+    }
 
     await logActivity({
       user: req.user._id,
@@ -308,7 +313,7 @@ const updateOrderStatus = async (req, res, next) => {
     });
 
     await sendNotification({
-      user: order.executive._id,
+      user: execIdToRecalc,
       roleTarget: 'all',
       title: 'Order Status Updated',
       message: `Order ${order.orderNumber} status changed to ${status}`,
@@ -317,6 +322,7 @@ const updateOrderStatus = async (req, res, next) => {
 
     res.json({ success: true, order: updatedOrder });
   } catch (error) {
+    console.error('[UpdateOrderStatus Error]', error);
     next(error);
   }
 };
