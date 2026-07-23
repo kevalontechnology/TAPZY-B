@@ -21,7 +21,7 @@ const orderSchema = new mongoose.Schema(
     grandTotal: { type: Number, required: true },
     paymentStatus: {
       type: String,
-      enum: ['Pending', 'Partial', 'Paid'],
+      enum: ['Pending', 'Partial', 'Paid', 'Refunded'],
       default: 'Pending',
     },
     status: {

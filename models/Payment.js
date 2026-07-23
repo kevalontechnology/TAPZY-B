@@ -15,7 +15,7 @@ const paymentSchema = new mongoose.Schema(
     receiptImage: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['Pending', 'Verified', 'Rejected'],
+      enum: ['Pending', 'Verified', 'Rejected', 'Refunded'],
       default: 'Pending',
     },
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
