@@ -2,10 +2,12 @@ const Order = require('../models/Order');
 const Stock = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
 const Invoice = require('../models/Invoice');
+const Payment = require('../models/Payment');
 const Setting = require('../models/Setting');
 const Client = require('../models/Client');
 const Product = require('../models/Product');
 const path = require('path');
+const fs = require('fs');
 const { logActivity } = require('../services/activityLogger');
 const { sendNotification } = require('../services/notificationService');
 const { generateInvoicePDF } = require('../services/pdfGenerator');
@@ -77,7 +79,11 @@ const getOrderById = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
     }
 
-    res.json({ success: true, order });
+    // Fetch payments & invoice for full order detail modal
+    const payments = await Payment.find({ order: order._id });
+    const invoice = await Invoice.findOne({ order: order._id });
+
+    res.json({ success: true, order, payments, invoice });
   } catch (error) {
     next(error);
   }
@@ -168,11 +174,11 @@ const createOrder = async (req, res, next) => {
   }
 };
 
-// @desc Update Order Status (Approve / Deduct Stock / Advance Status)
+// @desc Update Order Status (Approve / Deduct Stock / Cancel / Refund)
 // @route PUT /api/orders/:id/status
 const updateOrderStatus = async (req, res, next) => {
   try {
-    const { status, nfcDetails } = req.body;
+    const { status, nfcDetails, refundDetails } = req.body;
     const order = await Order.findById(req.params.id).populate('client').populate('executive');
 
     if (!order) {
@@ -186,11 +192,50 @@ const updateOrderStatus = async (req, res, next) => {
       order.nfcDetails = nfcDetails;
     }
 
-    // Handlers for status transitions:
-    // When transitioning to Approved or Stock Deducted for the first time:
-    if (['Approved', 'Stock Deducted'].includes(status) && !['Approved', 'Stock Deducted', 'Invoice Generated', 'Payment Completed', 'Printing', 'NFC Configuration', 'Delivery', 'Completed'].includes(previousStatus)) {
-      
-      // 1. Stock Deduction
+    const approvedStatuses = ['Approved', 'Stock Deducted', 'Invoice Generated', 'Payment Completed', 'Printing', 'NFC Configuration', 'Delivery', 'Completed'];
+
+    // 1. Handling Cancellation (- to + Stock Restoration & Monthly Target Reduction & Refund)
+    if (status === 'Cancelled' && previousStatus !== 'Cancelled') {
+      // If stock was previously deducted, restore stock (+ quantity)
+      if (approvedStatuses.includes(previousStatus)) {
+        for (const item of order.items) {
+          let stock = await Stock.findOne({ product: item.product });
+          if (stock) {
+            stock.quantity += Number(item.quantity);
+            await stock.save();
+
+            await StockTransaction.create({
+              product: item.product,
+              type: 'Stock In',
+              quantity: item.quantity,
+              referenceId: order.orderNumber,
+              notes: `Stock returned (+) due to Order ${order.orderNumber} cancellation`,
+              createdBy: req.user._id,
+            });
+          }
+        }
+      }
+
+      // Record Refund if payment was collected or refund details provided
+      if (refundDetails) {
+        await Payment.create({
+          order: order._id,
+          client: order.client._id,
+          amount: Number(refundDetails.amount || order.grandTotal),
+          method: refundDetails.method || 'Bank Transfer',
+          transactionId: refundDetails.transactionId || `REF-${Date.now()}`,
+          notes: refundDetails.notes || 'Order cancellation refund processed',
+          status: 'Verified',
+          createdBy: req.user._id,
+        });
+      }
+
+      order.paymentStatus = 'Refunded';
+    }
+
+    // 2. Handling Approval / Stock Deduction
+    if (['Approved', 'Stock Deducted'].includes(status) && !approvedStatuses.includes(previousStatus)) {
+      // Stock Deduction
       for (const item of order.items) {
         let stock = await Stock.findOne({ product: item.product });
         if (stock) {
@@ -217,35 +262,43 @@ const updateOrderStatus = async (req, res, next) => {
         }
       }
 
-      // 2. Generate GST Invoice PDF
+      // Generate GST Invoice PDF
       const count = await Invoice.countDocuments();
       const invoiceNumber = `INV-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
-      const filePath = path.join(__dirname, `../uploads/invoices/${invoiceNumber}.pdf`);
+      const uploadsDir = path.join(__dirname, '../uploads/invoices');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const filePath = path.join(uploadsDir, `${invoiceNumber}.pdf`);
 
       let setting = await Setting.findOne();
       if (!setting) setting = await Setting.create({});
 
-      const invoice = await Invoice.create({
-        invoiceNumber,
-        order: order._id,
-        client: order.client._id,
-        subTotal: order.subTotal,
-        discount: order.discount,
-        gstDetails: [{ rate: 18, amount: order.totalGst }],
-        grandTotal: order.grandTotal,
-        pdfPath: `/uploads/invoices/${invoiceNumber}.pdf`,
-        status: 'Generated',
-      });
+      let invoice = await Invoice.findOne({ order: order._id });
+      if (!invoice) {
+        invoice = await Invoice.create({
+          invoiceNumber,
+          order: order._id,
+          client: order.client._id,
+          subTotal: order.subTotal,
+          discount: order.discount,
+          gstDetails: [{ rate: 18, amount: order.totalGst }],
+          grandTotal: order.grandTotal,
+          pdfPath: `/uploads/invoices/${invoiceNumber}.pdf`,
+          status: 'Generated',
+        });
+      }
 
       await generateInvoicePDF(invoice, order, order.client, setting, filePath);
-
-      // 3. Recalculate Executive Monthly Target & Incentive
-      const orderMonth = new Date(order.createdAt).getMonth() + 1;
-      const orderYear = new Date(order.createdAt).getFullYear();
-      await calculateExecutiveIncentive(order.executive._id, orderMonth, orderYear);
     }
 
     const updatedOrder = await order.save();
+
+    // 3. ALWAYS Recalculate Executive Monthly Target & Incentive on status change (especially Cancellation)
+    const orderMonth = new Date(order.createdAt).getMonth() + 1;
+    const orderYear = new Date(order.createdAt).getFullYear();
+    await calculateExecutiveIncentive(order.executive._id, orderMonth, orderYear);
 
     await logActivity({
       user: req.user._id,
