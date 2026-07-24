@@ -4,8 +4,16 @@ const Notification = require('../models/Notification');
 // @route GET /api/notifications
 const getNotifications = async (req, res, next) => {
   try {
+    const roleTargets = ['all', req.user.role];
+    if (['super_admin', 'admin'].includes(req.user.role)) {
+      roleTargets.push('admin', 'super_admin');
+    }
+
     const notifications = await Notification.find({
-      $or: [{ user: req.user._id }, { roleTarget: req.user.role }, { roleTarget: 'all' }],
+      $or: [
+        { user: req.user._id },
+        { roleTarget: { $in: roleTargets } },
+      ],
     })
       .sort({ createdAt: -1 })
       .limit(30);

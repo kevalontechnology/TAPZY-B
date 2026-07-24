@@ -1,9 +1,10 @@
 const Target = require('../models/Target');
 const User = require('../models/User');
+const Incentive = require('../models/Incentive');
 const { logActivity } = require('../services/activityLogger');
 const { calculateExecutiveIncentive } = require('../services/incentiveCalculator');
 
-// @desc Get monthly targets
+// @desc Get monthly targets (with dynamic Achieved / In Progress status)
 // @route GET /api/targets
 const getTargets = async (req, res, next) => {
   try {
@@ -24,7 +25,33 @@ const getTargets = async (req, res, next) => {
       .populate('assignedBy', 'name email')
       .sort({ year: -1, month: -1 });
 
-    res.json({ success: true, count: targets.length, targets });
+    const updatedTargets = await Promise.all(
+      targets.map(async (tar) => {
+        if (!tar.executive) return tar;
+
+        let incentive = await Incentive.findOne({ executive: tar.executive._id, month: tar.month, year: tar.year });
+        if (!incentive) {
+          incentive = await calculateExecutiveIncentive(tar.executive._id, tar.month, tar.year);
+        }
+
+        const totalSold = incentive ? incentive.totalSold : 0;
+        const isAchieved = tar.targetCards > 0 && totalSold >= tar.targetCards;
+        const currentStatus = isAchieved ? 'Achieved' : 'In Progress';
+
+        if (tar.status !== currentStatus) {
+          tar.status = currentStatus;
+          await tar.save();
+        }
+
+        return {
+          ...tar.toObject(),
+          totalSoldCards: totalSold,
+          status: currentStatus,
+        };
+      })
+    );
+
+    res.json({ success: true, count: updatedTargets.length, targets: updatedTargets });
   } catch (error) {
     next(error);
   }
