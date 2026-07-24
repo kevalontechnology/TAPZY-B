@@ -4,12 +4,18 @@ const Incentive = require('../models/Incentive');
 const { logActivity } = require('../services/activityLogger');
 const { calculateExecutiveIncentive } = require('../services/incentiveCalculator');
 
-// @desc Get monthly targets (with dynamic Achieved / In Progress status)
+// @desc Get monthly targets (Auto-ensures active executives have target records)
 // @route GET /api/targets
 const getTargets = async (req, res, next) => {
   try {
-    const { month, year, executive } = req.query;
-    let query = {};
+    const curMonth = new Date().getMonth() + 1;
+    const curYear = new Date().getFullYear();
+
+    const month = req.query.month ? Number(req.query.month) : curMonth;
+    const year = req.query.year ? Number(req.query.year) : curYear;
+    const executive = req.query.executive;
+
+    let query = { month, year };
 
     if (req.user.role === 'executive') {
       query.executive = req.user._id;
@@ -17,8 +23,26 @@ const getTargets = async (req, res, next) => {
       query.executive = executive;
     }
 
-    if (month) query.month = Number(month);
-    if (year) query.year = Number(year);
+    // Auto-ensure target exists for active executives in current month
+    if (month === curMonth && year === curYear) {
+      const activeExecs = req.user.role === 'executive'
+        ? [req.user]
+        : await User.find({ role: 'executive', status: 'active' });
+
+      for (const exec of activeExecs) {
+        let existingTar = await Target.findOne({ executive: exec._id, month, year });
+        if (!existingTar) {
+          await Target.create({
+            executive: exec._id,
+            month,
+            year,
+            targetCards: 100,
+            notes: 'Default Monthly Goal',
+          });
+          await calculateExecutiveIncentive(exec._id, month, year);
+        }
+      }
+    }
 
     const targets = await Target.find(query)
       .populate('executive', 'name email phone avatar')
