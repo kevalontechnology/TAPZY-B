@@ -37,6 +37,7 @@ const getTargets = async (req, res, next) => {
             month,
             year,
             targetCards: 100,
+            assignedBy: req.user._id || exec._id,
             notes: 'Default Monthly Goal',
           });
           await calculateExecutiveIncentive(exec._id, month, year);
