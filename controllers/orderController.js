@@ -88,7 +88,7 @@ const getOrderById = async (req, res, next) => {
   }
 };
 
-// @desc Create new Order
+// @desc Create new Order (Assigns order & target credit strictly to the user who created the order)
 // @route POST /api/orders
 const createOrder = async (req, res, next) => {
   try {
@@ -99,7 +99,8 @@ const createOrder = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
-    const execId = req.user.role === 'executive' ? req.user._id : (client.assignedExecutive || req.user._id);
+    // Always credit the order & target cards to the user/executive who created this order
+    const execId = req.user._id;
 
     let subTotal = 0;
     let totalGst = 0;
@@ -113,7 +114,7 @@ const createOrder = async (req, res, next) => {
 
       const qty = Number(item.quantity);
       const unitPrice = Number(item.unitPrice || product.sellingPrice);
-      const gstPct = Number(product.gstPercentage || 18);
+      const gstPct = Number(product.gstPercentage !== undefined ? product.gstPercentage : 18);
       const itemSubtotal = qty * unitPrice;
       const itemGst = (itemSubtotal * gstPct) / 100;
 
@@ -162,7 +163,7 @@ const createOrder = async (req, res, next) => {
       link: '/orders',
     });
 
-    // Auto-recalculate executive incentive & card count
+    // Auto-recalculate creator executive incentive & card count
     const orderMonth = new Date(order.createdAt).getMonth() + 1;
     const orderYear = new Date(order.createdAt).getFullYear();
     await calculateExecutiveIncentive(execId, orderMonth, orderYear);
@@ -195,7 +196,7 @@ const updateOrderStatus = async (req, res, next) => {
 
     // 1. Handling Cancellation (- to + Stock Restoration & Monthly Target Reduction & Refund)
     if (status === 'Cancelled' && previousStatus !== 'Cancelled') {
-      // If stock was previously deducted, restore stock (+ quantity)
+      // If stock was previously deducted, restore stock (+)
       if (approvedStatuses.includes(previousStatus)) {
         for (const item of order.items) {
           let stock = await Stock.findOne({ product: item.product });
@@ -297,7 +298,7 @@ const updateOrderStatus = async (req, res, next) => {
 
     const updatedOrder = await order.save();
 
-    // 3. ALWAYS Recalculate Executive Monthly Target & Incentive on status change (especially Cancellation)
+    // 3. ALWAYS Recalculate Creator Executive Monthly Target & Incentive on status change
     const execIdToRecalc = order.executive?._id || order.executive;
     if (execIdToRecalc) {
       const orderMonth = new Date(order.createdAt).getMonth() + 1;
