@@ -204,12 +204,16 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       doc.fillColor(textColor).text('Subtotal (Taxable Amount):', summaryX, sumY).text(`₹${subTotal.toFixed(2)}`, 450, sumY, { align: 'right' });
       sumY += 16;
 
+      // Dynamic Tax Rates
+      const avgGstPct = items.length > 0 && subTotal > 0 ? (totalGst / subTotal) * 100 : 18;
+      const halfGstPct = (avgGstPct / 2).toFixed(1).replace(/\.0$/, '');
+
       // CGST
-      doc.text('CGST (9%):', summaryX, sumY).text(`₹${cgst.toFixed(2)}`, 450, sumY, { align: 'right' });
+      doc.text(`Central GST (CGST ${halfGstPct}%):`, summaryX, sumY).text(`₹${cgst.toFixed(2)}`, 450, sumY, { align: 'right' });
       sumY += 16;
 
       // SGST
-      doc.text('SGST (9%):', summaryX, sumY).text(`₹${sgst.toFixed(2)}`, 450, sumY, { align: 'right' });
+      doc.text(`State GST (SGST ${halfGstPct}%):`, summaryX, sumY).text(`₹${sgst.toFixed(2)}`, 450, sumY, { align: 'right' });
       sumY += 16;
 
       // Discount
