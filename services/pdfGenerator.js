@@ -37,7 +37,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
             .fillColor(accentColor)
             .fontSize(20)
             .font('Helvetica-Bold')
-            .text(setting.companyName || 'KEVALON TECHNOLOGY', 40, headerY);
+            .text(setting?.companyName || 'KEVALON TECHNOLOGY', 40, headerY);
           headerY += 24;
         }
       } else {
@@ -45,7 +45,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
           .fillColor(accentColor)
           .fontSize(20)
           .font('Helvetica-Bold')
-          .text(setting.companyName || 'KEVALON TECHNOLOGY', 40, headerY);
+          .text(setting?.companyName || 'KEVALON TECHNOLOGY', 40, headerY);
         headerY += 24;
       }
 
@@ -53,10 +53,10 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fontSize(9)
         .font('Helvetica')
         .fillColor(textColor)
-        .text(setting.tagline || 'Tapzy NFC Business & Google Review Cards', 40, headerY)
-        .text(`Address: ${setting.address || 'Kevalon Tech Hub, SG Highway, Ahmedabad, Gujarat - 380015'}`, 40, headerY + 13, { width: 260 })
-        .text(`GSTIN: ${setting.gstNumber || '24AAAAA0000A1Z5'} | State: Gujarat (24)`, 40, headerY + 36)
-        .text(`Email: ${setting.email || 'support@kevalon.com'} | Phone: ${setting.phone || '+91 98765 43210'}`, 40, headerY + 49);
+        .text(setting?.tagline || 'Tapzy NFC Business & Google Review Cards', 40, headerY)
+        .text(`Address: ${setting?.address || 'Kevalon Tech Hub, SG Highway, Ahmedabad, Gujarat - 380015'}`, 40, headerY + 13, { width: 260 })
+        .text(`GSTIN: ${setting?.gstNumber || '24AAAAA0000A1Z5'} | State: Gujarat (24)`, 40, headerY + 36)
+        .text(`Email: ${setting?.email || 'support@kevalon.com'} | Phone: ${setting?.phone || '+91 98765 43210'}`, 40, headerY + 49);
 
       // Header: TAX INVOICE Title & Metadata (Right)
       doc
@@ -69,10 +69,10 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fontSize(9)
         .font('Helvetica-Bold')
         .fillColor(primaryColor)
-        .text(`Invoice No: ${invoice.invoiceNumber}`, 320, 72, { align: 'right' })
+        .text(`Invoice No: ${invoice?.invoiceNumber || 'INV-2026-0001'}`, 320, 72, { align: 'right' })
         .font('Helvetica')
         .fillColor(textColor)
-        .text(`Invoice Date: ${new Date(invoice.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, 320, 86, { align: 'right' })
+        .text(`Invoice Date: ${new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, 320, 86, { align: 'right' })
         .text(`Order Ref: ${order?.orderNumber || 'ORD-2026-0001'}`, 320, 100, { align: 'right' })
         .text(`Payment Status: ${(order?.paymentStatus || 'Paid').toUpperCase()}`, 320, 114, { align: 'right' });
 
@@ -95,13 +95,13 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fillColor(primaryColor)
         .fontSize(10)
         .font('Helvetica-Bold')
-        .text(setting.companyName || 'KEVALON TECHNOLOGY', 50, boxY + 22)
+        .text(setting?.companyName || 'KEVALON TECHNOLOGY', 50, boxY + 22)
         .fillColor(textColor)
         .fontSize(8.5)
         .font('Helvetica')
-        .text(setting.address || 'Kevalon Tech Hub, SG Highway, Ahmedabad, Gujarat - 380015', 50, boxY + 36, { width: 230 })
-        .text(`GSTIN: ${setting.gstNumber || '24AAAAA0000A1Z5'}`, 50, boxY + 68)
-        .text(`Contact: ${setting.phone || '+91 98765 43210'} | ${setting.email || 'support@kevalon.com'}`, 50, boxY + 81, { width: 230 });
+        .text(setting?.address || 'Kevalon Tech Hub, SG Highway, Ahmedabad, Gujarat - 380015', 50, boxY + 36, { width: 230 })
+        .text(`GSTIN: ${setting?.gstNumber || '24AAAAA0000A1Z5'}`, 50, boxY + 68)
+        .text(`Contact: ${setting?.phone || '+91 98765 43210'} | ${setting?.email || 'support@kevalon.com'}`, 50, boxY + 81, { width: 230 });
 
       // Buyer Box (Right)
       doc.rect(305, boxY, boxWidth, boxHeight).fillAndStroke(lightBg, borderColor);
@@ -148,7 +148,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         const unitPrice = item.unitPrice || 0;
         const qty = item.quantity || 1;
         const subtotal = item.subtotal || unitPrice * qty;
-        const gstPct = item.gstPercentage || 18;
+        const gstPct = item.gstPercentage !== undefined ? item.gstPercentage : 18;
 
         doc
           .fillColor(textColor)
@@ -171,7 +171,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
 
       // Bank Details (Left)
       const bankDetails = setting?.bankDetails || {};
-      doc.rect(40, bottomY, 260, 115).fillAndStroke(lightBg, borderColor);
+      doc.rect(40, bottomY, 255, 125).fillAndStroke(lightBg, borderColor);
       doc
         .fillColor(accentColor)
         .font('Helvetica-Bold')
@@ -187,52 +187,57 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .text(`Branch: ${bankDetails.branch || 'SG Highway, Ahmedabad'}`, 50, bottomY + 80)
         .text('UPI ID: kevalon@hdfcbank', 50, bottomY + 94);
 
-      // Financial Totals (Right)
+      // Financial Totals Breakdown (Right)
       const subTotal = order?.subTotal || 0;
+      const discount = order?.discount || 0;
+      const taxableValue = Math.max(0, subTotal - discount);
       const totalGst = order?.totalGst || 0;
       const cgst = totalGst / 2;
       const sgst = totalGst / 2;
-      const discount = order?.discount || 0;
-      const grandTotal = order?.grandTotal || subTotal + totalGst - discount;
+      const grandTotal = order?.grandTotal || (taxableValue + totalGst);
 
-      const summaryX = 315;
+      const summaryX = 310;
       let sumY = bottomY;
 
       doc.fontSize(8.5).font('Helvetica');
 
-      // Subtotal
-      doc.fillColor(textColor).text('Subtotal (Taxable Amount):', summaryX, sumY).text(`₹${subTotal.toFixed(2)}`, 450, sumY, { align: 'right' });
-      sumY += 16;
+      // Gross Product Subtotal
+      doc.fillColor(textColor).text('Gross Subtotal:', summaryX, sumY).text(`₹${subTotal.toFixed(2)}`, 450, sumY, { align: 'right' });
+      sumY += 15;
+
+      // Less Discount
+      if (discount > 0) {
+        doc.text('Less: Discount:', summaryX, sumY).text(`- ₹${discount.toFixed(2)}`, 450, sumY, { align: 'right' });
+        sumY += 15;
+      }
+
+      // Net Taxable Value
+      doc.font('Helvetica-Bold').text('Net Taxable Value:', summaryX, sumY).text(`₹${taxableValue.toFixed(2)}`, 450, sumY, { align: 'right' }).font('Helvetica');
+      sumY += 15;
 
       // Dynamic Tax Rates
-      const avgGstPct = items.length > 0 && subTotal > 0 ? (totalGst / subTotal) * 100 : 18;
+      const avgGstPct = items.length > 0 && taxableValue > 0 ? (totalGst / taxableValue) * 100 : 18;
       const halfGstPct = (avgGstPct / 2).toFixed(1).replace(/\.0$/, '');
 
       // CGST
-      doc.text(`Central GST (CGST ${halfGstPct}%):`, summaryX, sumY).text(`₹${cgst.toFixed(2)}`, 450, sumY, { align: 'right' });
-      sumY += 16;
+      doc.text(`Central GST (CGST ${halfGstPct}%):`, summaryX, sumY).text(`+ ₹${cgst.toFixed(2)}`, 450, sumY, { align: 'right' });
+      sumY += 15;
 
       // SGST
-      doc.text(`State GST (SGST ${halfGstPct}%):`, summaryX, sumY).text(`₹${sgst.toFixed(2)}`, 450, sumY, { align: 'right' });
-      sumY += 16;
-
-      // Discount
-      if (discount > 0) {
-        doc.text('Discount:', summaryX, sumY).text(`- ₹${discount.toFixed(2)}`, 450, sumY, { align: 'right' });
-        sumY += 16;
-      }
+      doc.text(`State GST (SGST ${halfGstPct}%):`, summaryX, sumY).text(`+ ₹${sgst.toFixed(2)}`, 450, sumY, { align: 'right' });
+      sumY += 18;
 
       // Grand Total Highlight Box
-      doc.rect(summaryX, sumY + 2, 240, 30).fill(accentColor);
+      doc.rect(summaryX, sumY, 245, 28).fill(accentColor);
       doc
         .fillColor('#FFFFFF')
         .font('Helvetica-Bold')
-        .fontSize(11)
-        .text('GRAND TOTAL AMOUNT:', summaryX + 10, sumY + 11)
-        .text(`₹${grandTotal.toFixed(2)}`, 440, sumY + 11, { align: 'right' });
+        .fontSize(10.5)
+        .text('GRAND TOTAL AMOUNT:', summaryX + 8, sumY + 9)
+        .text(`₹${grandTotal.toFixed(2)}`, 440, sumY + 9, { align: 'right' });
 
       // Footer Terms & Signature Stamp
-      const footerY = bottomY + 130;
+      const footerY = bottomY + 140;
 
       doc
         .fillColor(textColor)

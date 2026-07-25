@@ -88,7 +88,7 @@ const getOrderById = async (req, res, next) => {
   }
 };
 
-// @desc Create new Order (Assigns order & target credit strictly to the user who created the order)
+// @desc Create new Order (Calculates exact item GST, net taxable amount, and grand total)
 // @route POST /api/orders
 const createOrder = async (req, res, next) => {
   try {
@@ -99,11 +99,9 @@ const createOrder = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
-    // Always credit the order & target cards to the user/executive who created this order
     const execId = req.user._id;
 
     let subTotal = 0;
-    let totalGst = 0;
     const formattedItems = [];
 
     for (const item of items) {
@@ -116,10 +114,8 @@ const createOrder = async (req, res, next) => {
       const unitPrice = Number(item.unitPrice || product.sellingPrice);
       const gstPct = Number(product.gstPercentage !== undefined ? product.gstPercentage : 18);
       const itemSubtotal = qty * unitPrice;
-      const itemGst = (itemSubtotal * gstPct) / 100;
 
       subTotal += itemSubtotal;
-      totalGst += itemGst;
 
       formattedItems.push({
         product: product._id,
@@ -131,7 +127,19 @@ const createOrder = async (req, res, next) => {
       });
     }
 
-    const grandTotal = Math.max(0, subTotal - Number(discount) + totalGst);
+    const discountVal = Number(discount) || 0;
+    const taxableTotal = Math.max(0, subTotal - discountVal);
+
+    // Calculate exact GST tax on net taxable value
+    let totalGst = 0;
+    for (const item of formattedItems) {
+      const ratio = subTotal > 0 ? item.subtotal / subTotal : 0;
+      const itemTaxable = ratio * taxableTotal;
+      const itemGst = (itemTaxable * item.gstPercentage) / 100;
+      totalGst += itemGst;
+    }
+
+    const grandTotal = taxableTotal + totalGst;
     const orderNumber = await generateOrderNumber();
 
     const order = await Order.create({
@@ -140,7 +148,7 @@ const createOrder = async (req, res, next) => {
       executive: execId,
       items: formattedItems,
       subTotal,
-      discount: Number(discount),
+      discount: discountVal,
       totalGst,
       grandTotal,
       notes: notes || '',
@@ -163,7 +171,6 @@ const createOrder = async (req, res, next) => {
       link: '/orders',
     });
 
-    // Auto-recalculate creator executive incentive & card count
     const orderMonth = new Date(order.createdAt).getMonth() + 1;
     const orderYear = new Date(order.createdAt).getFullYear();
     await calculateExecutiveIncentive(execId, orderMonth, orderYear);
@@ -194,9 +201,8 @@ const updateOrderStatus = async (req, res, next) => {
 
     const approvedStatuses = ['Approved', 'Stock Deducted', 'Invoice Generated', 'Payment Completed', 'Printing', 'NFC Configuration', 'Delivery', 'Completed'];
 
-    // 1. Handling Cancellation (- to + Stock Restoration & Monthly Target Reduction & Refund)
+    // 1. Handling Cancellation
     if (status === 'Cancelled' && previousStatus !== 'Cancelled') {
-      // If stock was previously deducted, restore stock (+)
       if (approvedStatuses.includes(previousStatus)) {
         for (const item of order.items) {
           let stock = await Stock.findOne({ product: item.product });
@@ -216,7 +222,6 @@ const updateOrderStatus = async (req, res, next) => {
         }
       }
 
-      // Record Refund if payment details provided
       if (refundDetails) {
         const clientIdVal = order.client?._id || order.client;
         const execIdVal = order.executive?._id || order.executive || req.user._id;
@@ -238,7 +243,6 @@ const updateOrderStatus = async (req, res, next) => {
 
     // 2. Handling Approval / Stock Deduction
     if (['Approved', 'Stock Deducted'].includes(status) && !approvedStatuses.includes(previousStatus)) {
-      // Stock Deduction
       for (const item of order.items) {
         let stock = await Stock.findOne({ product: item.product });
         if (stock) {
@@ -265,7 +269,6 @@ const updateOrderStatus = async (req, res, next) => {
         }
       }
 
-      // Generate GST Invoice PDF
       const count = await Invoice.countDocuments();
       const invoiceNumber = `INV-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
       const uploadsDir = path.join(__dirname, '../uploads/invoices');
@@ -298,7 +301,6 @@ const updateOrderStatus = async (req, res, next) => {
 
     const updatedOrder = await order.save();
 
-    // 3. ALWAYS Recalculate Creator Executive Monthly Target & Incentive on status change
     const execIdToRecalc = order.executive?._id || order.executive;
     if (execIdToRecalc) {
       const orderMonth = new Date(order.createdAt).getMonth() + 1;
