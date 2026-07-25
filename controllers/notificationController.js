@@ -26,7 +26,7 @@ const getNotifications = async (req, res, next) => {
   }
 };
 
-// @desc Mark notification as read
+// @desc Mark single notification as read
 // @route PUT /api/notifications/:id/read
 const markAsRead = async (req, res, next) => {
   try {
@@ -41,4 +41,27 @@ const markAsRead = async (req, res, next) => {
   }
 };
 
-module.exports = { getNotifications, markAsRead };
+// @desc Mark all notifications as read
+// @route PUT /api/notifications/read-all
+const markAllAsRead = async (req, res, next) => {
+  try {
+    const roleTargets = ['all', req.user.role];
+    if (['super_admin', 'admin'].includes(req.user.role)) {
+      roleTargets.push('admin', 'super_admin');
+    }
+
+    await Notification.updateMany(
+      {
+        $or: [{ user: req.user._id }, { roleTarget: { $in: roleTargets } }],
+        isRead: false,
+      },
+      { $set: { isRead: true } }
+    );
+
+    res.json({ success: true, message: 'All notifications marked as read' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getNotifications, markAsRead, markAllAsRead };
