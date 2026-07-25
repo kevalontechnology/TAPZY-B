@@ -75,7 +75,8 @@ const getOrderById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    if (req.user.role === 'executive' && order.executive._id.toString() !== req.user._id.toString()) {
+    const execIdStr = order.executive ? (order.executive._id ? order.executive._id.toString() : order.executive.toString()) : '';
+    if (req.user.role === 'executive' && execIdStr && execIdStr !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
     }
 
