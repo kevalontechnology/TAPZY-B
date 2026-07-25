@@ -59,7 +59,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .font('Helvetica')
         .fillColor(textColor)
         .text(setting?.tagline || 'Tapzy NFC Business & Google Review Cards', 40, headerY)
-        .text(`Address: ${setting?.address || 'Kevalon Tech Hub, SG Highway, Ahmedabad, Gujarat - 380015'}`, 40, headerY + 13, { width: 260 })
+        .text(`Address: ${setting?.address || '913, Solaris Business Hub, Sola Road, Parshwanath Jain BRTS, Bhuyangdev, Ahmedabad, Gujarat 380013, India.'}`, 40, headerY + 13, { width: 260 })
         .text(`GSTIN: ${setting?.gstNumber || '24AAAAA0000A1Z5'} | State: Gujarat (24)`, 40, headerY + 36)
         .text(`Email: ${setting?.email || 'support@kevalon.com'} | Phone: ${setting?.phone || '+91 98765 43210'}`, 40, headerY + 49);
 
@@ -79,7 +79,6 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fillColor(textColor)
         .text(`Invoice Date: ${new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, 320, 86, { align: 'right' })
         .text(`Order Ref: ${order?.orderNumber || 'ORD-2026-0001'}`, 320, 100, { align: 'right' })
-        .text(`Payment Status: ${(order?.paymentStatus || 'Paid').toUpperCase()}`, 320, 114, { align: 'right' });
 
       // Horizontal Divider
       const sectionDividerY = 160;
@@ -104,7 +103,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fillColor(textColor)
         .fontSize(8.5)
         .font('Helvetica')
-        .text(setting?.address || 'Kevalon Tech Hub, SG Highway, Ahmedabad, Gujarat - 380015', 50, boxY + 36, { width: 230 })
+        .text(setting?.address || '913, Solaris Business Hub, Sola Road, Parshwanath Jain BRTS, Bhuyangdev, Ahmedabad, Gujarat 380013, India.', 50, boxY + 36, { width: 230 })
         .text(`GSTIN: ${setting?.gstNumber || '24AAAAA0000A1Z5'}`, 50, boxY + 68)
         .text(`Contact: ${setting?.phone || '+91 98765 43210'} | ${setting?.email || 'support@kevalon.com'}`, 50, boxY + 81, { width: 230 });
 
@@ -185,11 +184,11 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fillColor(textColor)
         .font('Helvetica')
         .fontSize(8.5)
-        .text(`Account Name: ${bankDetails.accountName || 'Kevalon Technology Private Limited'}`, 50, bottomY + 24)
-        .text(`Bank Name: ${bankDetails.bankName || 'HDFC Bank'}`, 50, bottomY + 38)
-        .text(`Account Number: ${bankDetails.accountNumber || '99887766554433'}`, 50, bottomY + 52)
-        .text(`IFSC Code: ${bankDetails.ifscCode || 'HDFC0001234'}`, 50, bottomY + 66)
-        .text(`Branch: ${bankDetails.branch || 'SG Highway, Ahmedabad'}`, 50, bottomY + 80)
+        .text(`Account Name: ${bankDetails.accountName || 'Kevalon Technology'}`, 50, bottomY + 24)
+        .text(`Bank Name: ${bankDetails.bankName || 'YES BANK'}`, 50, bottomY + 38)
+        .text(`Account Number: ${bankDetails.accountNumber || '0420061900003890'}`, 50, bottomY + 52)
+        .text(`IFSC Code: ${bankDetails.ifscCode || 'YESB0000420'}`, 50, bottomY + 66)
+        .text(`Branch: ${bankDetails.branch || 'Shahibug, Ahmedabad'}`, 50, bottomY + 80)
         .text('UPI ID: kevalontechnology-1@okhdfcbank', 50, bottomY + 94);
 
       // Financial Totals Breakdown (Right)
