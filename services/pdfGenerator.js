@@ -2,9 +2,44 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-const formatMoney = (val) => {
+// Indian Rupee Number to Words Converter
+function numberToWordsINR(amount) {
+  const num = Math.floor(Math.abs(amount));
+  const paise = Math.round((Math.abs(amount) - num) * 100);
+
+  const a = [
+    '', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ',
+    'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function inWords(n) {
+    let str = '';
+    const numStr = ('000000000' + n).slice(-9);
+    const match = numStr.match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+    if (!match) return '';
+
+    str += Number(match[1]) !== 0 ? (a[Number(match[1])] || b[match[1][0]] + ' ' + a[match[1][1]]) + 'Crore ' : '';
+    str += Number(match[2]) !== 0 ? (a[Number(match[2])] || b[match[2][0]] + ' ' + a[match[2][1]]) + 'Lakh ' : '';
+    str += Number(match[3]) !== 0 ? (a[Number(match[3])] || b[match[3][0]] + ' ' + a[match[3][1]]) + 'Thousand ' : '';
+    str += Number(match[4]) !== 0 ? (a[Number(match[4])] || b[match[4][0]] + ' ' + a[match[4][1]]) + 'Hundred ' : '';
+    str += Number(match[5]) !== 0 ? (a[Number(match[5])] || b[match[5][0]] + ' ' + a[match[5][1]]) : '';
+    return str;
+  }
+
+  let words = inWords(num).trim();
+  if (!words) words = 'Zero';
+  let result = 'INR ' + words;
+  if (paise > 0) {
+    let paiseWords = inWords(paise).trim();
+    result += ' And ' + paiseWords + ' Paise';
+  }
+  return result + ' Only';
+}
+
+const formatNum = (val) => {
   const num = Number(val || 0);
-  return 'INR ' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
@@ -15,193 +50,205 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      // Create Landscape / Horizontal A4 Page (Width: 841.89pt, Height: 595.28pt)
-      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+      const doc = new PDFDocument({ margin: 30, size: 'A4' });
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
-      // Enterprise Color Palette
-      const primaryColor = '#0F172A'; // Slate 900
-      const accentColor = '#4F46E5';  // Indigo 600
-      const textColor = '#334155';    // Slate 700
-      const lightBg = '#F8FAFC';      // Slate 50
-      const borderColor = '#CBD5E1';  // Slate 300
+      // Page dimensions
+      const startX = 35;
+      const totalWidth = 525;
+      const midX = startX + 260; // 295
+      const endX = startX + totalWidth; // 560
 
-      const pageWidth = 841.89;
-      const margin = 30;
-      const contentWidth = pageWidth - margin * 2; // 781.89
+      const black = '#000000';
+      const gray = '#475569';
+      const lightGray = '#E2E8F0';
 
-      // Top Accent Header Line
-      doc.rect(margin, 20, contentWidth, 4).fill(accentColor);
+      // 1. TOP TITLE
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(12)
+        .fillColor(black)
+        .text('Tax Invoice', startX, 25, { width: totalWidth, align: 'center' });
 
-      // 1. TOP HEADER (Logo & Supplier Info on Left, Invoice Metadata on Right)
+      // 2. HEADER OUTER GRID BOX (Y = 42 to 215)
+      const headerBoxTop = 42;
+      const headerBoxHeight = 173;
+
+      doc.rect(startX, headerBoxTop, totalWidth, headerBoxHeight).strokeColor(black).lineWidth(0.8).stroke();
+      doc.moveTo(midX, headerBoxTop).lineTo(midX, headerBoxTop + headerBoxHeight).stroke();
+
+      // LEFT COLUMN - SUPPLIER & BUYER DETAILS
       const logoPath = path.join(__dirname, '../assets/logo.png');
+      let supplierY = headerBoxTop + 6;
 
       if (fs.existsSync(logoPath)) {
         try {
-          doc.image(logoPath, margin, 30, { fit: [180, 50] });
+          doc.image(logoPath, startX + 6, supplierY, { fit: [130, 32] });
+          supplierY += 34;
         } catch (e) {
-          doc
-            .fillColor(accentColor)
-            .fontSize(22)
-            .font('Helvetica-Bold')
-            .text(setting?.companyName || 'KEVALON TECHNOLOGY', margin, 32);
+          doc.font('Helvetica-Bold').fontSize(10).text(setting?.companyName || 'KEVALON TECHNOLOGY', startX + 6, supplierY);
+          supplierY += 14;
         }
       } else {
-        doc
-          .fillColor(accentColor)
-          .fontSize(22)
-          .font('Helvetica-Bold')
-          .text(setting?.companyName || 'KEVALON TECHNOLOGY', margin, 32);
+        doc.font('Helvetica-Bold').fontSize(10).text(setting?.companyName || 'KEVALON TECHNOLOGY', startX + 6, supplierY);
+        supplierY += 14;
       }
 
-      // TAX INVOICE Title & Metadata (Top Right)
-      const rightX = 500;
-      const rightWidth = contentWidth - (rightX - margin);
-
-      doc
-        .fillColor(accentColor)
-        .fontSize(24)
-        .font('Helvetica-Bold')
-        .text('GST TAX INVOICE', rightX, 28, { width: rightWidth, align: 'right' });
-
-      doc
-        .fontSize(9)
-        .font('Helvetica-Bold')
-        .fillColor(primaryColor)
-        .text(`Invoice No: ${invoice?.invoiceNumber || 'INV-2026-0001'}`, rightX, 56, { width: rightWidth, align: 'right' })
-        .font('Helvetica')
-        .fillColor(textColor)
-        .text(`Invoice Date: ${new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, rightX, 70, { width: rightWidth, align: 'right' })
-        .text(`Order Ref: ${order?.orderNumber || 'ORD-2026-0001'}`, rightX, 84, { width: rightWidth, align: 'right' })
-        .text(`Payment Status: ${(order?.paymentStatus || 'Paid').toUpperCase()}`, rightX, 98, { width: rightWidth, align: 'right' });
-
-      // Horizontal Divider
-      const headerDividerY = 116;
-      doc.moveTo(margin, headerDividerY).lineTo(pageWidth - margin, headerDividerY).strokeColor(borderColor).lineWidth(1).stroke();
-
-      // 2. SIDE-BY-SIDE BILLED FROM & BILLED TO CARDS (WIDE LANDSCAPE LAYOUT)
-      const companyAddress = setting?.address || '913, Solaris Business Hub, Sola Road, Parshwanath Jain BRTS, Bhuyangdev, Ahmedabad, Gujarat 380013, India.';
+      const companyAddress = setting?.address || '913, Solaris Business Hub, Sola Road, Ahmedabad - 380013';
       const companyGstin = setting?.gstNumber || '24BQSPH0154B1Z9';
       const companyEmail = setting?.email || 'sales@kevalontechnology.in';
       const companyPhone = setting?.phone || '+91 98252 47990';
 
-      const boxY = 124;
-      const halfBoxWidth = (contentWidth - 20) / 2; // 380.94
-      const boxHeight = 90;
-
-      // Billed From Box (Left)
-      doc.rect(margin, boxY, halfBoxWidth, boxHeight).fillAndStroke(lightBg, borderColor);
       doc
-        .fillColor(accentColor)
         .font('Helvetica-Bold')
         .fontSize(9)
-        .text('BILLED FROM (SUPPLIER DETAILS)', margin + 10, boxY + 6)
-        .fillColor(primaryColor)
-        .fontSize(10)
-        .font('Helvetica-Bold')
-        .text(setting?.companyName || 'KEVALON TECHNOLOGY', margin + 10, boxY + 18)
-        .fillColor(textColor)
-        .fontSize(8)
+        .text(setting?.companyName || 'KEVALON TECHNOLOGY PRIVATE LIMITED', startX + 6, supplierY)
         .font('Helvetica')
-        .text(setting?.tagline || 'Tapzy NFC Business & Google Review Cards', margin + 10, boxY + 30)
-        .text(`Address: ${companyAddress}`, margin + 10, boxY + 42, { width: halfBoxWidth - 20 })
-        .text(`GSTIN: ${companyGstin} | State: Gujarat (24)`, margin + 10, boxY + 64)
-        .text(`Email: ${companyEmail} | Phone: ${companyPhone}`, margin + 10, boxY + 76, { width: halfBoxWidth - 20 });
+        .fontSize(7.5)
+        .text(companyAddress, startX + 6, supplierY + 11, { width: 245 })
+        .text(`GSTIN/UIN: ${companyGstin}`, startX + 6, supplierY + 30)
+        .text(`State Name: Gujarat, Code : 24`, startX + 6, supplierY + 40)
+        .text(`E-Mail : ${companyEmail} | Phone: ${companyPhone}`, startX + 6, supplierY + 50);
 
-      // Billed To Box (Right)
-      const boxRightX = margin + halfBoxWidth + 20;
-      doc.rect(boxRightX, boxY, halfBoxWidth, boxHeight).fillAndStroke(lightBg, borderColor);
+      // Horizontal Divider inside Left Box for Buyer Section
+      const buyerDividerY = headerBoxTop + 95;
+      doc.moveTo(startX, buyerDividerY).lineTo(midX, buyerDividerY).stroke();
+
+      // BUYER / CLIENT DETAILS
       doc
-        .fillColor(accentColor)
-        .font('Helvetica-Bold')
-        .fontSize(9)
-        .text('BILLED TO (BUYER / CLIENT DETAILS)', boxRightX + 10, boxY + 6)
-        .fillColor(primaryColor)
-        .fontSize(10)
-        .font('Helvetica-Bold')
-        .text(client?.companyName || 'Client Company', boxRightX + 10, boxY + 18)
-        .fillColor(textColor)
-        .fontSize(8)
         .font('Helvetica')
-        .text(`Attn: ${client?.ownerName || 'Valued Client'}`, boxRightX + 10, boxY + 30)
-        .text(`Address: ${client?.address || ''}, ${client?.city || ''}, ${client?.state || ''} - ${client?.pincode || ''}`, boxRightX + 10, boxY + 42, { width: halfBoxWidth - 20 })
-        .text(`GSTIN: ${client?.gstNumber || 'Unregistered / Consumer'}`, boxRightX + 10, boxY + 64)
-        .text(`Phone: ${client?.mobile || 'N/A'} | Email: ${client?.email || 'N/A'}`, boxRightX + 10, boxY + 76, { width: halfBoxWidth - 20 });
-
-      // 3. WIDE HORIZONTAL ITEMIZED PRODUCTS TABLE
-      const tableTop = boxY + boxHeight + 12;
-      doc.rect(margin, tableTop, contentWidth, 20).fill(primaryColor);
-      doc
-        .fillColor('#FFFFFF')
+        .fontSize(7.5)
+        .text('Buyer (Bill to)', startX + 6, buyerDividerY + 4)
         .font('Helvetica-Bold')
-        .fontSize(9)
-        .text('#', margin + 5, tableTop + 5, { width: 30, align: 'center' })
-        .text('Product / Service Description', margin + 40, tableTop + 5, { width: 330 })
-        .text('HSN/SAC', margin + 375, tableTop + 5, { width: 70, align: 'center' })
-        .text('Qty', margin + 450, tableTop + 5, { width: 40, align: 'center' })
-        .text('Unit Price (INR)', margin + 495, tableTop + 5, { width: 90, align: 'right' })
-        .text('GST %', margin + 590, tableTop + 5, { width: 50, align: 'center' })
-        .text('Amount (INR)', margin + 645, tableTop + 5, { width: 130, align: 'right' });
+        .fontSize(8.5)
+        .text(client?.companyName || 'Valued Client Store', startX + 6, buyerDividerY + 14)
+        .font('Helvetica')
+        .fontSize(7.5)
+        .text(`Attn: ${client?.ownerName || ''}`, startX + 6, buyerDividerY + 25)
+        .text(`${client?.address || ''}, ${client?.city || ''}, ${client?.state || ''} - ${client?.pincode || ''}`, startX + 6, buyerDividerY + 35, { width: 245 })
+        .text(`State Name : ${client?.state || 'Gujarat'}, Code : 24`, startX + 6, buyerDividerY + 55)
+        .text(`GSTIN/UIN : ${client?.gstNumber || 'Unregistered'}`, startX + 6, buyerDividerY + 65);
 
-      let currentY = tableTop + 22;
-      doc.fillColor(textColor).font('Helvetica').fontSize(8.5);
+      // RIGHT COLUMN - INVOICE META GRID CELLS
+      let gridY = headerBoxTop;
 
+      // Cell 1: Invoice No & Dated
+      doc.rect(midX, gridY, 132, 28).stroke();
+      doc.rect(midX + 132, gridY, 133, 28).stroke();
+      doc.font('Helvetica').fontSize(7).text('Invoice No.', midX + 4, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text(invoice?.invoiceNumber || 'INV-2026-0001', midX + 4, gridY + 13);
+      doc.font('Helvetica').fontSize(7).text('Dated', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text(new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), midX + 136, gridY + 13);
+      gridY += 28;
+
+      // Cell 2: Delivery Note & Terms of Payment
+      doc.rect(midX, gridY, 132, 28).stroke();
+      doc.rect(midX + 132, gridY, 133, 28).stroke();
+      doc.font('Helvetica').fontSize(7).text('Delivery Note', midX + 4, gridY + 3);
+      doc.font('Helvetica').fontSize(7).text('Mode/Terms of Payment', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text((order?.paymentStatus || 'Paid').toUpperCase(), midX + 136, gridY + 13);
+      gridY += 28;
+
+      // Cell 3: Supplier's Ref & Other Reference
+      doc.rect(midX, gridY, 132, 28).stroke();
+      doc.rect(midX + 132, gridY, 133, 28).stroke();
+      doc.font('Helvetica').fontSize(7).text("Supplier's Ref.", midX + 4, gridY + 3);
+      doc.font('Helvetica').fontSize(7).text('Other Reference(s)', midX + 136, gridY + 3);
+      gridY += 28;
+
+      // Cell 4: Buyer's Order No & Dated
+      doc.rect(midX, gridY, 132, 28).stroke();
+      doc.rect(midX + 132, gridY, 133, 28).stroke();
+      doc.font('Helvetica').fontSize(7).text("Buyer's Order No.", midX + 4, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text(order?.orderNumber || 'ORD-2026-0001', midX + 4, gridY + 13);
+      doc.font('Helvetica').fontSize(7).text('Dated', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text(new Date(order?.createdAt || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), midX + 136, gridY + 13);
+      gridY += 28;
+
+      // Cell 5: Despatch Document No & Delivery Date
+      doc.rect(midX, gridY, 132, 28).stroke();
+      doc.rect(midX + 132, gridY, 133, 28).stroke();
+      doc.font('Helvetica').fontSize(7).text('Despatch Document No.', midX + 4, gridY + 3);
+      doc.font('Helvetica').fontSize(7).text('Destination', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text(client?.city || 'Ahmedabad', midX + 136, gridY + 13);
+      gridY += 28;
+
+      // Cell 6: Despatched through & Terms of Delivery
+      doc.rect(midX, gridY, 132, 33).stroke();
+      doc.rect(midX + 132, gridY, 133, 33).stroke();
+      doc.font('Helvetica').fontSize(7).text('Despatched through', midX + 4, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).text('Surface Courier', midX + 4, gridY + 14);
+      doc.font('Helvetica').fontSize(7).text('Terms of Delivery', midX + 136, gridY + 3);
+
+      // 3. MAIN ITEM TABLE GRID (Y = 215 to 485)
+      const tableTop = 215;
+      const tableHeight = 270;
+      const tableBottom = tableTop + tableHeight;
+
+      // Outer border box for table
+      doc.rect(startX, tableTop, totalWidth, tableHeight).stroke();
+
+      // Column Header Heights
+      const headerRowHeight = 20;
+      doc.rect(startX, tableTop, totalWidth, headerRowHeight).fillAndStroke(lightGray, black);
+
+      // Column Definitions: [Name, Width, Align]
+      // Sl(25), Description(220), HSN(55), Quantity(45), Rate(60), per(30), Amount(90)
+      const colX = {
+        sl: startX,          // 35
+        desc: startX + 25,    // 60
+        hsn: startX + 245,   // 280
+        qty: startX + 300,   // 335
+        rate: startX + 345,  // 380
+        per: startX + 405,   // 440
+        amt: startX + 435,   // 470
+      };
+
+      doc.fillColor(black).font('Helvetica-Bold').fontSize(7.5);
+      doc.text('Sl\nNo.', colX.sl, tableTop + 2, { width: 25, align: 'center' });
+      doc.text('Description of Goods', colX.desc + 4, tableTop + 6, { width: 180 });
+      doc.text('HSN/SAC', colX.hsn, tableTop + 6, { width: 55, align: 'center' });
+      doc.text('Quantity', colX.qty, tableTop + 6, { width: 45, align: 'center' });
+      doc.text('Rate', colX.rate, tableTop + 6, { width: 60, align: 'right' });
+      doc.text('per', colX.per, tableTop + 6, { width: 30, align: 'center' });
+      doc.text('Amount', colX.amt, tableTop + 6, { width: 85, align: 'right' });
+
+      // Vertical Grid Lines down to Table Total Row
+      const totalRowHeight = 20;
+      const gridBottom = tableBottom - totalRowHeight;
+
+      doc.moveTo(colX.desc, tableTop).lineTo(colX.desc, tableBottom).stroke();
+      doc.moveTo(colX.hsn, tableTop).lineTo(colX.hsn, tableBottom).stroke();
+      doc.moveTo(colX.qty, tableTop).lineTo(colX.qty, tableBottom).stroke();
+      doc.moveTo(colX.rate, tableTop).lineTo(colX.rate, tableBottom).stroke();
+      doc.moveTo(colX.per, tableTop).lineTo(colX.per, tableBottom).stroke();
+      doc.moveTo(colX.amt, tableTop).lineTo(colX.amt, tableBottom).stroke();
+
+      // Render Item Rows
+      let itemY = tableTop + headerRowHeight + 6;
       const items = order?.items || [];
-      items.forEach((item, index) => {
-        const bg = index % 2 === 0 ? '#FFFFFF' : lightBg;
-        doc.rect(margin, currentY - 2, contentWidth, 20).fillAndStroke(bg, '#F1F5F9');
+      let totalQuantity = 0;
 
+      items.forEach((item, index) => {
         const unitPrice = item.unitPrice || 0;
         const qty = item.quantity || 1;
         const subtotal = item.subtotal || unitPrice * qty;
-        const gstPct = item.gstPercentage !== undefined ? item.gstPercentage : 18;
+        totalQuantity += qty;
 
-        doc
-          .fillColor(textColor)
-          .text((index + 1).toString(), margin + 5, currentY + 3, { width: 30, align: 'center' })
-          .text(item.productName || 'Tapzy NFC Product', margin + 40, currentY + 3, { width: 330, height: 14 })
-          .text('85235200', margin + 375, currentY + 3, { width: 70, align: 'center' })
-          .text(qty.toString(), margin + 450, currentY + 3, { width: 40, align: 'center' })
-          .text(unitPrice.toFixed(2), margin + 495, currentY + 3, { width: 90, align: 'right' })
-          .text(`${gstPct}%`, margin + 590, currentY + 3, { width: 50, align: 'center' })
-          .font('Helvetica-Bold')
-          .text(subtotal.toFixed(2), margin + 645, currentY + 3, { width: 130, align: 'right' })
-          .font('Helvetica');
+        doc.font('Helvetica').fontSize(8).fillColor(black);
+        doc.text((index + 1).toString(), colX.sl, itemY, { width: 25, align: 'center' });
+        doc.font('Helvetica-Bold').text(item.productName || 'Tapzy NFC Business Card', colX.desc + 4, itemY, { width: 180 });
+        doc.font('Helvetica').text('85235200', colX.hsn, itemY, { width: 55, align: 'center' });
+        doc.font('Helvetica-Bold').text(`${qty} Pcs`, colX.qty, itemY, { width: 45, align: 'center' });
+        doc.font('Helvetica').text(formatNum(unitPrice), colX.rate, itemY, { width: 60, align: 'right' });
+        doc.text('Pcs', colX.per, itemY, { width: 30, align: 'center' });
+        doc.font('Helvetica-Bold').text(formatNum(subtotal), colX.amt, itemY, { width: 85, align: 'right' });
 
-        currentY += 20;
+        itemY += 16;
       });
 
-      // 4. HORIZONTAL FOOTER (Left: Bank & Terms, Right: Financial Totals Breakdown & Signature)
-      currentY += 12;
-      const bottomY = currentY;
-      const leftColWidth = 380;
-      const rightColX = margin + leftColWidth + 20;
-      const rightColWidth = contentWidth - leftColWidth - 20; // 381.89
-
-      // Left Column: Bank Details & Terms
-      const bankDetails = setting?.bankDetails || {};
-      doc.rect(margin, bottomY, leftColWidth, 100).fillAndStroke(lightBg, borderColor);
-      doc
-        .fillColor(accentColor)
-        .font('Helvetica-Bold')
-        .fontSize(9)
-        .text('BANK & PAYMENT DETAILS', margin + 10, bottomY + 6)
-        .fillColor(textColor)
-        .font('Helvetica')
-        .fontSize(8)
-        .text(`Account Name: ${bankDetails.accountName || 'Kevalon Technology'}`, margin + 10, bottomY + 18)
-        .text(`Bank: ${bankDetails.bankName || 'YES BANK '} | Account No: ${bankDetails.accountNumber || '0420061900003890'}`, margin + 10, bottomY + 30)
-        .text(`IFSC Code: ${bankDetails.ifscCode || 'YESB0000420'} | Branch: ${bankDetails.branch || 'Shahibug, Ahmedabad'}`, margin + 10, bottomY + 42)
-        .text('UPI ID: kevalontechnology-1@okhdfcbank', margin + 10, bottomY + 54);
-
-      doc
-        .fontSize(7.5)
-        .fillColor(textColor)
-        .text('Terms & Conditions:', margin + 10, bottomY + 68)
-        .text('1. Goods once sold will not be returned or exchanged. 2. Subject to Ahmedabad jurisdiction.', margin + 10, bottomY + 79);
-
-      // Right Column: Financial Totals Breakdown
+      // Calculate Financial Taxes
       const subTotal = order?.subTotal || 0;
       const discount = order?.discount || 0;
       const taxableValue = Math.max(0, subTotal - discount);
@@ -210,56 +257,124 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       const sgst = totalGst / 2;
       const grandTotal = order?.grandTotal || (taxableValue + totalGst);
 
-      let sumY = bottomY;
-      doc.fontSize(8.5).font('Helvetica');
-
-      // Gross Product Subtotal
-      doc.fillColor(textColor).text('Gross Subtotal:', rightColX, sumY).text(formatMoney(subTotal), rightColX + 160, sumY, { width: 200, align: 'right' });
-      sumY += 14;
-
-      // Less Discount
-      if (discount > 0) {
-        doc.text('Less: Discount:', rightColX, sumY).text(`- ${formatMoney(discount)}`, rightColX + 160, sumY, { width: 200, align: 'right' });
-        sumY += 14;
-      }
-
-      // Net Taxable Value
-      doc.font('Helvetica-Bold').text('Net Taxable Value:', rightColX, sumY).text(formatMoney(taxableValue), rightColX + 160, sumY, { width: 200, align: 'right' }).font('Helvetica');
-      sumY += 14;
-
-      // Dynamic Tax Rates
       const avgGstPct = items.length > 0 && taxableValue > 0 ? (totalGst / taxableValue) * 100 : 18;
       const halfGstPct = (avgGstPct / 2).toFixed(1).replace(/\.0$/, '');
 
-      // CGST
-      doc.text(`Central GST (CGST ${halfGstPct}%):`, rightColX, sumY).text(`+ ${formatMoney(cgst)}`, rightColX + 160, sumY, { width: 200, align: 'right' });
-      sumY += 14;
+      // Less Discount Row inside Table
+      if (discount > 0) {
+        doc.font('Helvetica-Oblique').fontSize(8).text('Less: Special Discount', colX.desc + 40, itemY);
+        doc.text(`- ${formatNum(discount)}`, colX.amt, itemY, { width: 85, align: 'right' });
+        itemY += 16;
+      }
 
-      // SGST
-      doc.text(`State GST (SGST ${halfGstPct}%):`, rightColX, sumY).text(`+ ${formatMoney(sgst)}`, rightColX + 160, sumY, { width: 200, align: 'right' });
-      sumY += 16;
+      // Output CGST Row inside Table
+      doc.font('Helvetica-BoldOblique').fontSize(8).text(`Output CGST @ ${halfGstPct}%`, colX.desc + 40, itemY);
+      doc.font('Helvetica').text(`${halfGstPct} %`, colX.per - 25, itemY, { width: 50, align: 'right' });
+      doc.font('Helvetica-Bold').text(formatNum(cgst), colX.amt, itemY, { width: 85, align: 'right' });
+      itemY += 16;
 
-      // Grand Total Highlight Box
-      doc.rect(rightColX, sumY, rightColWidth, 26).fill(accentColor);
+      // Output SGST Row inside Table
+      doc.font('Helvetica-BoldOblique').fontSize(8).text(`Output SGST @ ${halfGstPct}%`, colX.desc + 40, itemY);
+      doc.font('Helvetica').text(`${halfGstPct} %`, colX.per - 25, itemY, { width: 50, align: 'right' });
+      doc.font('Helvetica-Bold').text(formatNum(sgst), colX.amt, itemY, { width: 85, align: 'right' });
+
+      // Table Footer Total Row (Y = 465 to 485)
+      doc.rect(startX, gridBottom, totalWidth, totalRowHeight).fillAndStroke(lightGray, black);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(black);
+      doc.text('Total', colX.desc - 30, gridBottom + 5, { width: 40, align: 'right' });
+      doc.text(`${totalQuantity} Pcs`, colX.qty, gridBottom + 5, { width: 45, align: 'center' });
+      doc.text(`INR ${formatNum(grandTotal)}`, colX.amt - 35, gridBottom + 5, { width: 120, align: 'right' });
+
+      // 4. AMOUNT CHARGEABLE IN WORDS (Y = 485 to 510)
+      const wordsBoxTop = tableBottom;
+      const wordsBoxHeight = 25;
+      doc.rect(startX, wordsBoxTop, totalWidth, wordsBoxHeight).stroke();
+      doc.font('Helvetica').fontSize(7.5).fillColor(gray).text('Amount Chargeable (in words)', startX + 6, wordsBoxTop + 3);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(black).text(numberToWordsINR(grandTotal), startX + 6, wordsBoxTop + 13);
+
+      // 5. HSN/SAC TAX BREAKDOWN TABLE (Y = 510 to 575)
+      const hsnTop = wordsBoxTop + wordsBoxHeight;
+      const hsnHeight = 65;
+      doc.rect(startX, hsnTop, totalWidth, hsnHeight).stroke();
+
+      // HSN Header Row
+      doc.rect(startX, hsnTop, totalWidth, 18).fillAndStroke(lightGray, black);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(black);
+
+      // Columns: HSN/SAC(70), Taxable Value(90), Central Tax(110), State Tax(110), Total Tax(145)
+      const hsnCol = { hsn: startX, val: startX + 70, cgst: startX + 160, sgst: startX + 270, tot: startX + 380 };
+
+      doc.text('HSN/SAC', hsnCol.hsn, hsnTop + 5, { width: 70, align: 'center' });
+      doc.text('Taxable Value', hsnCol.val, hsnTop + 5, { width: 90, align: 'right' });
+      doc.text(`Central Tax (${halfGstPct}%)`, hsnCol.cgst, hsnTop + 5, { width: 110, align: 'center' });
+      doc.text(`State Tax (${halfGstPct}%)`, hsnCol.sgst, hsnTop + 5, { width: 110, align: 'center' });
+      doc.text('Total Tax Amount', hsnCol.tot, hsnTop + 5, { width: 140, align: 'right' });
+
+      // HSN Grid Vertical Lines
+      doc.moveTo(hsnCol.val, hsnTop).lineTo(hsnCol.val, hsnTop + hsnHeight).stroke();
+      doc.moveTo(hsnCol.cgst, hsnTop).lineTo(hsnCol.cgst, hsnTop + hsnHeight).stroke();
+      doc.moveTo(hsnCol.sgst, hsnTop).lineTo(hsnCol.sgst, hsnTop + hsnHeight).stroke();
+      doc.moveTo(hsnCol.tot, hsnTop).lineTo(hsnCol.tot, hsnTop + hsnHeight).stroke();
+
+      // HSN Row 1 Data
+      const hsnRowY = hsnTop + 22;
+      doc.font('Helvetica').fontSize(7.5);
+      doc.text('85235200', hsnCol.hsn, hsnRowY, { width: 70, align: 'center' });
+      doc.text(formatNum(taxableValue), hsnCol.val, hsnRowY, { width: 90, align: 'right' });
+      doc.text(formatNum(cgst), hsnCol.cgst, hsnRowY, { width: 110, align: 'center' });
+      doc.text(formatNum(sgst), hsnCol.sgst, hsnRowY, { width: 110, align: 'center' });
+      doc.text(formatNum(totalGst), hsnCol.tot, hsnRowY, { width: 140, align: 'right' });
+
+      // HSN Total Row
+      const hsnTotalY = hsnTop + 45;
+      doc.rect(startX, hsnTotalY, totalWidth, 20).fillAndStroke(lightGray, black);
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor(black);
+      doc.text('Total', hsnCol.hsn, hsnTotalY + 5, { width: 70, align: 'center' });
+      doc.text(formatNum(taxableValue), hsnCol.val, hsnTotalY + 5, { width: 90, align: 'right' });
+      doc.text(formatNum(cgst), hsnCol.cgst, hsnTotalY + 5, { width: 110, align: 'center' });
+      doc.text(formatNum(sgst), hsnCol.sgst, hsnTotalY + 5, { width: 110, align: 'center' });
+      doc.text(formatNum(totalGst), hsnCol.tot, hsnTotalY + 5, { width: 140, align: 'right' });
+
+      // 6. TAX AMOUNT IN WORDS (Y = 575 to 595)
+      const taxWordsY = hsnTop + hsnHeight;
+      doc.rect(startX, taxWordsY, totalWidth, 20).stroke();
+      doc.font('Helvetica').fontSize(7.5).fillColor(gray).text('Tax Amount (in words) :', startX + 6, taxWordsY + 5);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(numberToWordsINR(totalGst), startX + 110, taxWordsY + 5);
+
+      // 7. FOOTER DECLARATION & AUTHORISED SIGNATORY (Y = 595 to 680)
+      const footerBoxY = taxWordsY + 20;
+      const footerBoxHeight = 80;
+      doc.rect(startX, footerBoxY, totalWidth, footerBoxHeight).stroke();
+
+      // Left Declaration Box
       doc
-        .fillColor('#FFFFFF')
         .font('Helvetica-Bold')
-        .fontSize(10)
-        .text('GRAND TOTAL AMOUNT:', rightColX + 10, sumY + 8)
-        .text(formatMoney(grandTotal), rightColX + 160, sumY + 8, { width: 195, align: 'right' });
+        .fontSize(7.5)
+        .fillColor(black)
+        .text('Declaration:', startX + 6, footerBoxY + 6)
+        .font('Helvetica')
+        .fontSize(7)
+        .text('1. Goods once sold will not be returned or exchanged.', startX + 6, footerBoxY + 18)
+        .text('2. Payment is due within 7 days of invoice date.', startX + 6, footerBoxY + 28)
+        .text('3. Subject to Ahmedabad, Gujarat jurisdiction.', startX + 6, footerBoxY + 38);
 
-      // Authorized Signatory Stamp Box (Bottom Right)
-      const stampY = sumY + 34;
-      doc.rect(rightColX + 160, stampY, 200, 42).strokeColor(borderColor).stroke();
+      // Right Authorised Signatory Box
+      const sigX = startX + 310;
+      doc.moveTo(sigX, footerBoxY).lineTo(sigX, footerBoxY + footerBoxHeight).stroke();
       doc
-        .fillColor(primaryColor)
         .font('Helvetica-Bold')
-        .fontSize(8.5)
-        .text('For KEVALON TECHNOLOGY', rightColX + 160, stampY + 5, { width: 200, align: 'center' })
-        .fillColor(textColor)
+        .fontSize(8)
+        .text(`for ${setting?.companyName || 'KEVALON TECHNOLOGY'}`, sigX + 10, footerBoxY + 10, { width: 195, align: 'right' })
         .font('Helvetica')
         .fontSize(7.5)
-        .text('Authorized Signatory Stamp', rightColX + 160, stampY + 26, { width: 200, align: 'center' });
+        .text('Authorised Signatory', sigX + 10, footerBoxY + 62, { width: 195, align: 'right' });
+
+      // Centered Bottom Disclaimer Text
+      doc
+        .font('Helvetica-Oblique')
+        .fontSize(7.5)
+        .fillColor(gray)
+        .text('This is a Computer Generated Document', startX, footerBoxY + footerBoxHeight + 8, { width: totalWidth, align: 'center' });
 
       doc.end();
 
