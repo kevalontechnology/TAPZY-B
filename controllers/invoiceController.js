@@ -19,7 +19,7 @@ const getInvoices = async (req, res, next) => {
     }
 
     const invoices = await Invoice.find(query)
-      .populate('order', 'orderNumber grandTotal status items')
+      .populate('order', 'orderNumber grandTotal subTotal totalGst discount status items paymentStatus')
       .populate('client', 'companyName ownerName email mobile gstNumber address city state pincode')
       .sort({ createdAt: -1 });
 
@@ -29,7 +29,7 @@ const getInvoices = async (req, res, next) => {
   }
 };
 
-// @desc Download PDF invoice file (Dynamically generates if file does not exist)
+// @desc Download PDF invoice file (Always generates fresh PDF with latest company & client details)
 // @route GET /api/invoices/:id/pdf
 const downloadInvoicePDF = async (req, res, next) => {
   try {
@@ -49,13 +49,11 @@ const downloadInvoicePDF = async (req, res, next) => {
     const fileName = `${invoice.invoiceNumber}.pdf`;
     const fullPath = path.join(uploadsDir, fileName);
 
-    // If PDF file does not exist on disk, generate it dynamically on the fly!
-    if (!fs.existsSync(fullPath)) {
-      let setting = await Setting.findOne();
-      if (!setting) setting = await Setting.create({});
+    let setting = await Setting.findOne();
+    if (!setting) setting = await Setting.create({});
 
-      await generateInvoicePDF(invoice, invoice.order, invoice.client, setting, fullPath);
-    }
+    // Generate fresh structured PDF invoice
+    await generateInvoicePDF(invoice, invoice.order, invoice.client, setting, fullPath);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${invoice.invoiceNumber}.pdf"`);
