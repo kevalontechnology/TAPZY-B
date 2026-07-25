@@ -190,10 +190,10 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .fillColor(textColor)
         .font('Helvetica')
         .fontSize(8)
-        .text(`Account Name: ${bankDetails.accountName || 'Kevalon Technology Private Limited'}`, margin + 10, bottomY + 18)
-        .text(`Bank: ${bankDetails.bankName || 'YES BANK / HDFC BANK'} | Account No: ${bankDetails.accountNumber || '0420061900003890'}`, margin + 10, bottomY + 30)
+        .text(`Account Name: ${bankDetails.accountName || 'Kevalon Technology'}`, margin + 10, bottomY + 18)
+        .text(`Bank: ${bankDetails.bankName || 'YES BANK '} | Account No: ${bankDetails.accountNumber || '0420061900003890'}`, margin + 10, bottomY + 30)
         .text(`IFSC Code: ${bankDetails.ifscCode || 'YESB0000420'} | Branch: ${bankDetails.branch || 'Shahibug, Ahmedabad'}`, margin + 10, bottomY + 42)
-        .text('UPI ID: kevalon@hdfcbank', margin + 10, bottomY + 54);
+        .text('UPI ID: kevalontechnology-1@okhdfcbank', margin + 10, bottomY + 54);
 
       doc
         .fontSize(7.5)
