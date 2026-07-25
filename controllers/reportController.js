@@ -17,46 +17,59 @@ const getDashboardData = async (req, res, next) => {
 
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-    // Filter by role if executive
-    let orderFilter = { status: { $ne: 'Cancelled' } };
+    // Base filter: exclude cancelled orders
+    let baseOrderFilter = { status: { $ne: 'Cancelled' } };
     let clientFilter = {};
     if (req.user.role === 'executive') {
-      orderFilter.executive = req.user._id;
+      baseOrderFilter.executive = req.user._id;
       clientFilter.assignedExecutive = req.user._id;
     }
 
-    // Today's Sales
-    const todayOrders = await Order.find({
-      ...orderFilter,
+    // Filter strictly for PAID/COMPLETED orders (Today's, Monthly & Lifetime Sales)
+    const paidOrderFilter = {
+      ...baseOrderFilter,
+      paymentStatus: 'Paid',
+    };
+
+    // Filter strictly for PENDING payments
+    const pendingOrderFilter = {
+      ...baseOrderFilter,
+      paymentStatus: { $in: ['Pending', 'Partial'] },
+    };
+
+    // 1. Today's Sales (ONLY Paid Orders)
+    const todayPaidOrders = await Order.find({
+      ...paidOrderFilter,
       createdAt: { $gte: todayStart },
     });
-    const todaysSales = todayOrders.reduce((sum, o) => sum + o.grandTotal, 0);
+    const todaysSales = todayPaidOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
 
-    // Monthly Sales
-    const monthlyOrders = await Order.find({
-      ...orderFilter,
+    // 2. Monthly Sales (ONLY Paid Orders)
+    const monthlyPaidOrders = await Order.find({
+      ...paidOrderFilter,
       createdAt: { $gte: monthStart },
     });
-    const monthlySales = monthlyOrders.reduce((sum, o) => sum + o.grandTotal, 0);
+    const monthlySales = monthlyPaidOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
 
-    // Total Sales (Lifetime)
-    const allOrders = await Order.find(orderFilter);
-    const totalSales = allOrders.reduce((sum, o) => sum + o.grandTotal, 0);
+    // 3. Lifetime Sales (ONLY Paid Orders)
+    const allPaidOrders = await Order.find(paidOrderFilter);
+    const totalSales = allPaidOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
+
+    // 4. Pending Payments (ONLY Pending/Partial Orders)
+    const pendingOrders = await Order.find(pendingOrderFilter);
+    const pendingPaymentsAmount = pendingOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
 
     // Counts
     const totalClients = await Client.countDocuments(clientFilter);
-    const totalOrders = allOrders.length;
-
-    // Pending Payments
-    const pendingOrders = await Order.find({ ...orderFilter, paymentStatus: { $in: ['Pending', 'Partial'] } });
-    const pendingPaymentsAmount = pendingOrders.reduce((sum, o) => sum + o.grandTotal, 0);
+    const allNonCancelledOrders = await Order.find(baseOrderFilter);
+    const totalOrders = allNonCancelledOrders.length;
 
     // Low Stock Alert Count
     const lowStockCount = await Stock.countDocuments({ $expr: { $lte: ['$quantity', '$lowStockThreshold'] } });
 
-    // Top Products Sold
+    // Top Products Sold (from Paid Orders)
     const topProductsAgg = await Order.aggregate([
-      { $match: orderFilter },
+      { $match: paidOrderFilter },
       { $unwind: '$items' },
       {
         $group: {
@@ -69,7 +82,7 @@ const getDashboardData = async (req, res, next) => {
       { $limit: 5 },
     ]);
 
-    // Monthly Sales Trend (Last 6 Months)
+    // Monthly Sales Trend (Last 6 Months - Paid Orders Only)
     const salesTrend = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
@@ -80,10 +93,10 @@ const getDashboardData = async (req, res, next) => {
       const mEnd = new Date(y, m + 1, 0, 23, 59, 59);
 
       const mOrders = await Order.find({
-        ...orderFilter,
+        ...paidOrderFilter,
         createdAt: { $gte: mStart, $lte: mEnd },
       });
-      const revenue = mOrders.reduce((sum, o) => sum + o.grandTotal, 0);
+      const revenue = mOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
       const monthName = mStart.toLocaleString('default', { month: 'short' });
       salesTrend.push({ month: `${monthName} ${y}`, revenue, count: mOrders.length });
     }
@@ -121,7 +134,6 @@ const getExecutiveReport = async (req, res, next) => {
 
     const reportData = await Promise.all(
       executives.map(async (exec) => {
-        // Auto-recalculate incentive so cards sold & extra cards are 100% up to date!
         const incentive = await calculateExecutiveIncentive(exec._id, month, year);
         const target = await Target.findOne({ executive: exec._id, month, year });
 
@@ -132,7 +144,7 @@ const getExecutiveReport = async (req, res, next) => {
           createdAt: { $gte: startDate, $lte: endDate },
         });
 
-        const salesTotal = orders.reduce((sum, o) => sum + o.grandTotal, 0);
+        const salesTotal = orders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
 
         return {
           executive: exec,
