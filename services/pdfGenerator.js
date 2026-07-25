@@ -2,6 +2,11 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
+const formatMoney = (val) => {
+  const num = Number(val || 0);
+  return 'INR ' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
   return new Promise((resolve, reject) => {
     try {
@@ -130,12 +135,12 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .font('Helvetica-Bold')
         .fontSize(9)
         .text('#', 45, tableTop + 6, { width: 20, align: 'center' })
-        .text('Product / Service Description', 70, tableTop + 6, { width: 200 })
-        .text('HSN/SAC', 275, tableTop + 6, { width: 55, align: 'center' })
-        .text('Qty', 335, tableTop + 6, { width: 35, align: 'center' })
-        .text('Unit Price', 375, tableTop + 6, { width: 55, align: 'right' })
-        .text('GST', 435, tableTop + 6, { width: 40, align: 'center' })
-        .text('Amount (₹)', 480, tableTop + 6, { width: 70, align: 'right' });
+        .text('Product / Service Description', 70, tableTop + 6, { width: 190 })
+        .text('HSN/SAC', 265, tableTop + 6, { width: 55, align: 'center' })
+        .text('Qty', 325, tableTop + 6, { width: 30, align: 'center' })
+        .text('Unit Price', 360, tableTop + 6, { width: 65, align: 'right' })
+        .text('GST', 430, tableTop + 6, { width: 35, align: 'center' })
+        .text('Amount (INR)', 470, tableTop + 6, { width: 80, align: 'right' });
 
       let currentY = tableTop + 24;
       doc.fillColor(textColor).font('Helvetica').fontSize(8.5);
@@ -153,13 +158,13 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         doc
           .fillColor(textColor)
           .text((index + 1).toString(), 45, currentY + 3, { width: 20, align: 'center' })
-          .text(item.productName || 'Tapzy NFC Product', 70, currentY + 3, { width: 200, height: 16 })
-          .text('85235200', 275, currentY + 3, { width: 55, align: 'center' })
-          .text(qty.toString(), 335, currentY + 3, { width: 35, align: 'center' })
-          .text(`₹${unitPrice.toFixed(2)}`, 375, currentY + 3, { width: 55, align: 'right' })
-          .text(`${gstPct}%`, 435, currentY + 3, { width: 40, align: 'center' })
+          .text(item.productName || 'Tapzy NFC Product', 70, currentY + 3, { width: 190, height: 16 })
+          .text('85235200', 265, currentY + 3, { width: 55, align: 'center' })
+          .text(qty.toString(), 325, currentY + 3, { width: 30, align: 'center' })
+          .text(unitPrice.toFixed(2), 360, currentY + 3, { width: 65, align: 'right' })
+          .text(`${gstPct}%`, 430, currentY + 3, { width: 35, align: 'center' })
           .font('Helvetica-Bold')
-          .text(`₹${subtotal.toFixed(2)}`, 480, currentY + 3, { width: 70, align: 'right' })
+          .text(subtotal.toFixed(2), 470, currentY + 3, { width: 80, align: 'right' })
           .font('Helvetica');
 
         currentY += 22;
@@ -202,17 +207,17 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       doc.fontSize(8.5).font('Helvetica');
 
       // Gross Product Subtotal
-      doc.fillColor(textColor).text('Gross Subtotal:', summaryX, sumY).text(`₹${subTotal.toFixed(2)}`, 450, sumY, { align: 'right' });
+      doc.fillColor(textColor).text('Gross Subtotal:', summaryX, sumY).text(formatMoney(subTotal), 440, sumY, { align: 'right' });
       sumY += 15;
 
       // Less Discount
       if (discount > 0) {
-        doc.text('Less: Discount:', summaryX, sumY).text(`- ₹${discount.toFixed(2)}`, 450, sumY, { align: 'right' });
+        doc.text('Less: Discount:', summaryX, sumY).text(`- ${formatMoney(discount)}`, 440, sumY, { align: 'right' });
         sumY += 15;
       }
 
       // Net Taxable Value
-      doc.font('Helvetica-Bold').text('Net Taxable Value:', summaryX, sumY).text(`₹${taxableValue.toFixed(2)}`, 450, sumY, { align: 'right' }).font('Helvetica');
+      doc.font('Helvetica-Bold').text('Net Taxable Value:', summaryX, sumY).text(formatMoney(taxableValue), 440, sumY, { align: 'right' }).font('Helvetica');
       sumY += 15;
 
       // Dynamic Tax Rates
@@ -220,11 +225,11 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       const halfGstPct = (avgGstPct / 2).toFixed(1).replace(/\.0$/, '');
 
       // CGST
-      doc.text(`Central GST (CGST ${halfGstPct}%):`, summaryX, sumY).text(`+ ₹${cgst.toFixed(2)}`, 450, sumY, { align: 'right' });
+      doc.text(`Central GST (CGST ${halfGstPct}%):`, summaryX, sumY).text(`+ ${formatMoney(cgst)}`, 440, sumY, { align: 'right' });
       sumY += 15;
 
       // SGST
-      doc.text(`State GST (SGST ${halfGstPct}%):`, summaryX, sumY).text(`+ ₹${sgst.toFixed(2)}`, 450, sumY, { align: 'right' });
+      doc.text(`State GST (SGST ${halfGstPct}%):`, summaryX, sumY).text(`+ ${formatMoney(sgst)}`, 440, sumY, { align: 'right' });
       sumY += 18;
 
       // Grand Total Highlight Box
@@ -232,9 +237,9 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       doc
         .fillColor('#FFFFFF')
         .font('Helvetica-Bold')
-        .fontSize(10.5)
+        .fontSize(10)
         .text('GRAND TOTAL AMOUNT:', summaryX + 8, sumY + 9)
-        .text(`₹${grandTotal.toFixed(2)}`, 440, sumY + 9, { align: 'right' });
+        .text(formatMoney(grandTotal), 435, sumY + 9, { align: 'right' });
 
       // Footer Terms & Signature Stamp
       const footerY = bottomY + 140;
