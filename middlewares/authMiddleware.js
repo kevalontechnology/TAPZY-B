@@ -3,9 +3,15 @@ const User = require('../models/User');
 
 const protect = async (req, res, next) => {
   let token;
+
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (token) {
     try {
-      token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'kevalon_tapzy_nfc_super_secret_jwt_key_2026');
       req.user = await User.findById(decoded.id).select('-password');
       if (!req.user || req.user.status === 'inactive') {
@@ -17,9 +23,7 @@ const protect = async (req, res, next) => {
     }
   }
 
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Not authorized, no token provided.' });
-  }
+  return res.status(401).json({ success: false, message: 'Not authorized, no token provided.' });
 };
 
 module.exports = { protect };
