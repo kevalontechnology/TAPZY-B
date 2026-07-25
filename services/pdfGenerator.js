@@ -190,7 +190,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .text(`Account Number: ${bankDetails.accountNumber || '99887766554433'}`, 50, bottomY + 52)
         .text(`IFSC Code: ${bankDetails.ifscCode || 'HDFC0001234'}`, 50, bottomY + 66)
         .text(`Branch: ${bankDetails.branch || 'SG Highway, Ahmedabad'}`, 50, bottomY + 80)
-        .text('UPI ID: kevalon@hdfcbank', 50, bottomY + 94);
+        .text('UPI ID: kevalontechnology-1@okhdfcbank', 50, bottomY + 94);
 
       // Financial Totals Breakdown (Right)
       const subTotal = order?.subTotal || 0;
