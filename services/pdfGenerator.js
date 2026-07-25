@@ -19,121 +19,108 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
-      // Color Palette
+      // Enterprise Color Palette
       const primaryColor = '#0F172A'; // Slate 900
       const accentColor = '#4F46E5';  // Indigo 600
       const textColor = '#334155';    // Slate 700
       const lightBg = '#F8FAFC';      // Slate 50
-      const borderColor = '#E2E8F0';  // Slate 200
+      const borderColor = '#CBD5E1';  // Slate 300
 
-      // Top Banner Accent Line
+      // Top Accent Header Line
       doc.rect(40, 25, 515, 4).fill(accentColor);
 
-      // Header: Logo & Company Info (Left)
+      // 1. TOP HEADER (Logo on Left, Invoice Details on Right)
       const logoPath = path.join(__dirname, '../assets/logo.png');
-      let textStartY = 42;
 
       if (fs.existsSync(logoPath)) {
         try {
-          // Render Kevalon Technology Logo Image cleanly with generous height gap
-          doc.image(logoPath, 40, 38, { width: 150 });
-          textStartY = 92; // Ensures 54px vertical space so text NEVER overlaps with logo image
+          doc.image(logoPath, 40, 36, { fit: [160, 50] });
         } catch (e) {
           doc
             .fillColor(accentColor)
-            .fontSize(20)
+            .fontSize(22)
             .font('Helvetica-Bold')
-            .text(setting?.companyName || 'KEVALON TECHNOLOGY', 40, 42);
-          textStartY = 68;
+            .text(setting?.companyName || 'KEVALON TECHNOLOGY', 40, 40);
         }
       } else {
         doc
           .fillColor(accentColor)
-          .fontSize(20)
+          .fontSize(22)
           .font('Helvetica-Bold')
-          .text(setting?.companyName || 'KEVALON TECHNOLOGY', 40, 42);
-        textStartY = 68;
+          .text(setting?.companyName || 'KEVALON TECHNOLOGY', 40, 40);
       }
 
-      const companyAddress = setting?.address || '913, Solaris Business Hub, Sola Road, Parshwanath Jain BRTS, Bhuyangdev, Ahmedabad, Gujarat 380013, India.';
-      const companyGstin = setting?.gstNumber || '24BQSPH0154B1Z9';
-      const companyEmail = setting?.email || 'sales@kevalontechnology.in';
-      const companyPhone = setting?.phone || '+91 98252 47990';
-
-      doc
-        .fontSize(8.5)
-        .font('Helvetica')
-        .fillColor(textColor)
-        .text(setting?.tagline || 'Tapzy NFC Business & Google Review Cards', 40, textStartY)
-        .text(`Address: ${companyAddress}`, 40, textStartY + 13, { width: 265 })
-        .text(`GSTIN: ${companyGstin} | State: Gujarat (24)`, 40, textStartY + 45)
-        .text(`Email: ${companyEmail} | Phone: ${companyPhone}`, 40, textStartY + 58);
-
-      // Header: TAX INVOICE Title & Metadata (Right)
+      // TAX INVOICE Title & Metadata (Top Right)
       doc
         .fillColor(accentColor)
         .fontSize(22)
         .font('Helvetica-Bold')
-        .text('GST TAX INVOICE', 320, 38, { align: 'right' });
+        .text('GST TAX INVOICE', 320, 35, { align: 'right' });
 
       doc
         .fontSize(9)
         .font('Helvetica-Bold')
         .fillColor(primaryColor)
-        .text(`Invoice No: ${invoice?.invoiceNumber || 'INV-2026-0001'}`, 320, 66, { align: 'right' })
+        .text(`Invoice No: ${invoice?.invoiceNumber || 'INV-2026-0001'}`, 320, 62, { align: 'right' })
         .font('Helvetica')
         .fillColor(textColor)
-        .text(`Invoice Date: ${new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, 320, 80, { align: 'right' })
-        .text(`Order Ref: ${order?.orderNumber || 'ORD-2026-0001'}`, 320, 94, { align: 'right' })
-        .text(`Payment Status: ${(order?.paymentStatus || 'Paid').toUpperCase()}`, 320, 108, { align: 'right' });
+        .text(`Invoice Date: ${new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, 320, 76, { align: 'right' })
+        .text(`Order Ref: ${order?.orderNumber || 'ORD-2026-0001'}`, 320, 90, { align: 'right' })
+        .text(`Payment Status: ${(order?.paymentStatus || 'Paid').toUpperCase()}`, 320, 104, { align: 'right' });
 
-      // Horizontal Section Divider Line
-      const sectionDividerY = textStartY + 76;
-      doc.moveTo(40, sectionDividerY).lineTo(555, sectionDividerY).strokeColor(borderColor).lineWidth(1).stroke();
+      // Horizontal Divider below Top Header
+      const headerDividerY = 122;
+      doc.moveTo(40, headerDividerY).lineTo(555, headerDividerY).strokeColor(borderColor).lineWidth(1).stroke();
 
-      // Billed From & Billed To Boxes
-      const boxY = sectionDividerY + 10;
+      // 2. BILLED FROM & BILLED TO SIDE-BY-SIDE CARDS
+      const companyAddress = setting?.address || '913, Solaris Business Hub, Sola Road, Parshwanath Jain BRTS, Bhuyangdev, Ahmedabad, Gujarat 380013, India.';
+      const companyGstin = setting?.gstNumber || '24BQSPH0154B1Z9';
+      const companyEmail = setting?.email || 'sales@kevalontechnology.in';
+      const companyPhone = setting?.phone || '+91 98252 47990';
+
+      const boxY = 132;
       const boxWidth = 250;
-      const boxHeight = 98;
+      const boxHeight = 110;
 
-      // Seller Box (Left)
+      // Billed From Box (Left - Supplier Details)
       doc.rect(40, boxY, boxWidth, boxHeight).fillAndStroke(lightBg, borderColor);
       doc
         .fillColor(accentColor)
         .font('Helvetica-Bold')
-        .fontSize(9.5)
-        .text('BILLED FROM (SUPPLIER)', 50, boxY + 7)
+        .fontSize(9)
+        .text('BILLED FROM (SUPPLIER)', 50, boxY + 8)
         .fillColor(primaryColor)
-        .fontSize(9.5)
+        .fontSize(10)
         .font('Helvetica-Bold')
-        .text(setting?.companyName || 'KEVALON TECHNOLOGY', 50, boxY + 20)
+        .text(setting?.companyName || 'KEVALON TECHNOLOGY', 50, boxY + 22)
         .fillColor(textColor)
         .fontSize(8)
         .font('Helvetica')
-        .text(companyAddress, 50, boxY + 33, { width: 230 })
-        .text(`GSTIN: ${companyGstin}`, 50, boxY + 65)
-        .text(`Contact: ${companyPhone} | ${companyEmail}`, 50, boxY + 78, { width: 230 });
+        .text(setting?.tagline || 'Tapzy NFC Business & Google Review Cards', 50, boxY + 36)
+        .text(`Address: ${companyAddress}`, 50, boxY + 49, { width: 230 })
+        .text(`GSTIN: ${companyGstin} | State: Gujarat (24)`, 50, boxY + 82)
+        .text(`Email: ${companyEmail} | Phone: ${companyPhone}`, 50, boxY + 95, { width: 230 });
 
-      // Buyer Box (Right)
+      // Billed To Box (Right - Buyer / Client Details)
       doc.rect(305, boxY, boxWidth, boxHeight).fillAndStroke(lightBg, borderColor);
       doc
         .fillColor(accentColor)
         .font('Helvetica-Bold')
-        .fontSize(9.5)
-        .text('BILLED TO (BUYER / CLIENT)', 315, boxY + 7)
+        .fontSize(9)
+        .text('BILLED TO (BUYER / CLIENT)', 315, boxY + 8)
         .fillColor(primaryColor)
-        .fontSize(9.5)
+        .fontSize(10)
         .font('Helvetica-Bold')
-        .text(client?.companyName || 'Client Company', 315, boxY + 20)
+        .text(client?.companyName || 'Client Company', 315, boxY + 22)
         .fillColor(textColor)
         .fontSize(8)
         .font('Helvetica')
-        .text(`Attn: ${client?.ownerName || 'Valued Client'}`, 315, boxY + 33)
-        .text(`Address: ${client?.address || ''}, ${client?.city || ''}, ${client?.state || ''} - ${client?.pincode || ''}`, 315, boxY + 46, { width: 230 })
-        .text(`GSTIN: ${client?.gstNumber || 'Unregistered / Consumer'}`, 315, boxY + 68)
-        .text(`Phone: ${client?.mobile || 'N/A'} | Email: ${client?.email || 'N/A'}`, 315, boxY + 80, { width: 230 });
+        .text(`Attn: ${client?.ownerName || 'Valued Client'}`, 315, boxY + 36)
+        .text(`Address: ${client?.address || ''}, ${client?.city || ''}, ${client?.state || ''} - ${client?.pincode || ''}`, 315, boxY + 49, { width: 230 })
+        .text(`GSTIN: ${client?.gstNumber || 'Unregistered / Consumer'}`, 315, boxY + 82)
+        .text(`Phone: ${client?.mobile || 'N/A'} | Email: ${client?.email || 'N/A'}`, 315, boxY + 95, { width: 230 });
 
-      // Items Table Header
+      // 3. ITEMIZED PRODUCTS TABLE
       const tableTop = boxY + boxHeight + 15;
       doc.rect(40, tableTop, 515, 22).fill(primaryColor);
       doc
@@ -176,11 +163,11 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         currentY += 22;
       });
 
-      // Bottom Section: Payment Details (Left) & Financial Totals (Right)
+      // 4. BANK DETAILS (Left) & FINANCIAL SUMMARY (Right)
       currentY += 15;
       const bottomY = currentY;
 
-      // Bank Details (Left)
+      // Bank & Payment Details Box (Left)
       const bankDetails = setting?.bankDetails || {};
       doc.rect(40, bottomY, 255, 120).fillAndStroke(lightBg, borderColor);
       doc
@@ -247,7 +234,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .text('GRAND TOTAL AMOUNT:', summaryX + 8, sumY + 9)
         .text(formatMoney(grandTotal), 435, sumY + 9, { align: 'right' });
 
-      // Footer Terms & Signature Stamp
+      // 5. FOOTER TERMS & AUTHORIZED SIGNATORY STAMP
       const footerY = bottomY + 135;
 
       doc
@@ -259,7 +246,7 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
         .text('2. Payment is due within 7 days of invoice date.', 40, footerY + 22)
         .text('3. Subject to Ahmedabad, Gujarat jurisdiction.', 40, footerY + 32);
 
-      // Authorized Signatory
+      // Authorized Signatory Stamp Box
       doc.rect(360, footerY, 195, 55).strokeColor(borderColor).stroke();
       doc
         .fillColor(primaryColor)
