@@ -62,139 +62,135 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
 
       const black = '#000000';
       const gray = '#475569';
-      const lightGray = '#E2E8F0';
+      const lightGray = '#F1F5F9';
 
       // 1. TOP TITLE
       doc
         .font('Helvetica-Bold')
         .fontSize(12)
         .fillColor(black)
-        .text('Tax Invoice', startX, 25, { width: totalWidth, align: 'center' });
+        .text('Tax Invoice', startX, 22, { width: totalWidth, align: 'center' });
 
-      // 2. HEADER OUTER GRID BOX (Y = 42 to 215)
-      const headerBoxTop = 42;
-      const headerBoxHeight = 173;
+      // 2. HEADER OUTER GRID BOX (Y = 38 to 206)
+      const headerBoxTop = 38;
+      const headerBoxHeight = 168;
 
       doc.rect(startX, headerBoxTop, totalWidth, headerBoxHeight).strokeColor(black).lineWidth(0.8).stroke();
       doc.moveTo(midX, headerBoxTop).lineTo(midX, headerBoxTop + headerBoxHeight).stroke();
 
-      // LEFT COLUMN - SUPPLIER & BUYER DETAILS
+      // LEFT COLUMN - SUPPLIER DETAILS
       const logoPath = path.join(__dirname, '../assets/logo.png');
-      let supplierY = headerBoxTop + 6;
+      let logoHeight = 32;
 
       if (fs.existsSync(logoPath)) {
         try {
-          doc.image(logoPath, startX + 6, supplierY, { fit: [130, 32] });
-          supplierY += 34;
+          doc.image(logoPath, startX + 6, headerBoxTop + 4, { fit: [140, 32] });
         } catch (e) {
-          doc.font('Helvetica-Bold').fontSize(10).text(setting?.companyName || 'KEVALON TECHNOLOGY', startX + 6, supplierY);
-          supplierY += 14;
+          doc.font('Helvetica-Bold').fontSize(10).text(setting?.companyName || 'KEVALON TECHNOLOGY', startX + 6, headerBoxTop + 6);
         }
       } else {
-        doc.font('Helvetica-Bold').fontSize(10).text(setting?.companyName || 'KEVALON TECHNOLOGY', startX + 6, supplierY);
-        supplierY += 14;
+        doc.font('Helvetica-Bold').fontSize(10).text(setting?.companyName || 'KEVALON TECHNOLOGY', startX + 6, headerBoxTop + 6);
       }
 
-      const companyAddress = setting?.address || '913, Solaris Business Hub, Sola Road, Ahmedabad - 380013';
+      const supplierTextY = headerBoxTop + logoHeight + 6; // Y = 76
+      const companyAddress = setting?.address || '913, Solaris Business Hub, Sola Road, Bhuyangdev, Ahmedabad, Gujarat 380013, India.';
       const companyGstin = setting?.gstNumber || '24BQSPH0154B1Z9';
       const companyEmail = setting?.email || 'sales@kevalontechnology.in';
       const companyPhone = setting?.phone || '+91 98252 47990';
 
       doc
-        .font('Helvetica-Bold')
-        .fontSize(9)
-        .text(setting?.companyName || 'KEVALON TECHNOLOGY PRIVATE LIMITED', startX + 6, supplierY)
         .font('Helvetica')
         .fontSize(7.5)
-        .text(companyAddress, startX + 6, supplierY + 11, { width: 245 })
-        .text(`GSTIN/UIN: ${companyGstin}`, startX + 6, supplierY + 30)
-        .text(`State Name: Gujarat, Code : 24`, startX + 6, supplierY + 40)
-        .text(`E-Mail : ${companyEmail} | Phone: ${companyPhone}`, startX + 6, supplierY + 50);
+        .fillColor(black)
+        .text(companyAddress, startX + 6, supplierTextY, { width: 245, height: 20 })
+        .text(`GSTIN/UIN: ${companyGstin} | State: Gujarat (24)`, startX + 6, supplierTextY + 20)
+        .text(`E-Mail: ${companyEmail} | Phone: ${companyPhone}`, startX + 6, supplierTextY + 30);
 
-      // Horizontal Divider inside Left Box for Buyer Section
-      const buyerDividerY = headerBoxTop + 95;
+      // Horizontal Divider inside Left Box for Buyer Section (Y = 122)
+      const buyerDividerY = headerBoxTop + 84; // 122
       doc.moveTo(startX, buyerDividerY).lineTo(midX, buyerDividerY).stroke();
 
       // BUYER / CLIENT DETAILS
       doc
         .font('Helvetica')
         .fontSize(7.5)
+        .fillColor(gray)
         .text('Buyer (Bill to)', startX + 6, buyerDividerY + 4)
         .font('Helvetica-Bold')
         .fontSize(8.5)
+        .fillColor(black)
         .text(client?.companyName || 'Valued Client Store', startX + 6, buyerDividerY + 14)
         .font('Helvetica')
         .fontSize(7.5)
-        .text(`Attn: ${client?.ownerName || ''}`, startX + 6, buyerDividerY + 25)
-        .text(`${client?.address || ''}, ${client?.city || ''}, ${client?.state || ''} - ${client?.pincode || ''}`, startX + 6, buyerDividerY + 35, { width: 245 })
-        .text(`State Name : ${client?.state || 'Gujarat'}, Code : 24`, startX + 6, buyerDividerY + 55)
-        .text(`GSTIN/UIN : ${client?.gstNumber || 'Unregistered'}`, startX + 6, buyerDividerY + 65);
+        .text(`Attn: ${client?.ownerName || 'Client'}`, startX + 6, buyerDividerY + 25)
+        .text(`${client?.address || ''}, ${client?.city || ''}, ${client?.state || ''} - ${client?.pincode || ''}`, startX + 6, buyerDividerY + 35, { width: 245, height: 18 })
+        .text(`State Name : ${client?.state || 'Gujarat'}, Code : 24`, startX + 6, buyerDividerY + 54)
+        .text(`GSTIN/UIN : ${client?.gstNumber || 'Unregistered'}`, startX + 6, buyerDividerY + 64);
 
-      // RIGHT COLUMN - INVOICE META GRID CELLS
+      // RIGHT COLUMN - INVOICE META GRID CELLS (Each cell exactly 28px height)
       let gridY = headerBoxTop;
 
       // Cell 1: Invoice No & Dated
       doc.rect(midX, gridY, 132, 28).stroke();
       doc.rect(midX + 132, gridY, 133, 28).stroke();
-      doc.font('Helvetica').fontSize(7).text('Invoice No.', midX + 4, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text(invoice?.invoiceNumber || 'INV-2026-0001', midX + 4, gridY + 13);
-      doc.font('Helvetica').fontSize(7).text('Dated', midX + 136, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text(new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), midX + 136, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Invoice No.', midX + 4, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(invoice?.invoiceNumber || 'INV-2026-0001', midX + 4, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Dated', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(new Date(invoice?.invoiceDate || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), midX + 136, gridY + 13);
       gridY += 28;
 
       // Cell 2: Delivery Note & Terms of Payment
       doc.rect(midX, gridY, 132, 28).stroke();
       doc.rect(midX + 132, gridY, 133, 28).stroke();
-      doc.font('Helvetica').fontSize(7).text('Delivery Note', midX + 4, gridY + 3);
-      doc.font('Helvetica').fontSize(7).text('Mode/Terms of Payment', midX + 136, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text((order?.paymentStatus || 'Paid').toUpperCase(), midX + 136, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Delivery Note', midX + 4, gridY + 3);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Mode/Terms of Payment', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text((order?.paymentStatus || 'Paid').toUpperCase(), midX + 136, gridY + 13);
       gridY += 28;
 
       // Cell 3: Supplier's Ref & Other Reference
       doc.rect(midX, gridY, 132, 28).stroke();
       doc.rect(midX + 132, gridY, 133, 28).stroke();
-      doc.font('Helvetica').fontSize(7).text("Supplier's Ref.", midX + 4, gridY + 3);
-      doc.font('Helvetica').fontSize(7).text('Other Reference(s)', midX + 136, gridY + 3);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text("Supplier's Ref.", midX + 4, gridY + 3);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Other Reference(s)', midX + 136, gridY + 3);
       gridY += 28;
 
       // Cell 4: Buyer's Order No & Dated
       doc.rect(midX, gridY, 132, 28).stroke();
       doc.rect(midX + 132, gridY, 133, 28).stroke();
-      doc.font('Helvetica').fontSize(7).text("Buyer's Order No.", midX + 4, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text(order?.orderNumber || 'ORD-2026-0001', midX + 4, gridY + 13);
-      doc.font('Helvetica').fontSize(7).text('Dated', midX + 136, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text(new Date(order?.createdAt || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), midX + 136, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text("Buyer's Order No.", midX + 4, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(order?.orderNumber || 'ORD-2026-0001', midX + 4, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Dated', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(new Date(order?.createdAt || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), midX + 136, gridY + 13);
       gridY += 28;
 
-      // Cell 5: Despatch Document No & Delivery Date
+      // Cell 5: Despatch Document No & Destination
       doc.rect(midX, gridY, 132, 28).stroke();
       doc.rect(midX + 132, gridY, 133, 28).stroke();
-      doc.font('Helvetica').fontSize(7).text('Despatch Document No.', midX + 4, gridY + 3);
-      doc.font('Helvetica').fontSize(7).text('Destination', midX + 136, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text(client?.city || 'Ahmedabad', midX + 136, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Despatch Document No.', midX + 4, gridY + 3);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Destination', midX + 136, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(client?.city || 'Ahmedabad', midX + 136, gridY + 13);
       gridY += 28;
 
       // Cell 6: Despatched through & Terms of Delivery
-      doc.rect(midX, gridY, 132, 33).stroke();
-      doc.rect(midX + 132, gridY, 133, 33).stroke();
-      doc.font('Helvetica').fontSize(7).text('Despatched through', midX + 4, gridY + 3);
-      doc.font('Helvetica-Bold').fontSize(8).text('Surface Courier', midX + 4, gridY + 14);
-      doc.font('Helvetica').fontSize(7).text('Terms of Delivery', midX + 136, gridY + 3);
+      doc.rect(midX, gridY, 132, 28).stroke();
+      doc.rect(midX + 132, gridY, 133, 28).stroke();
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Despatched through', midX + 4, gridY + 3);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text('Surface Courier', midX + 4, gridY + 13);
+      doc.font('Helvetica').fontSize(7).fillColor(gray).text('Terms of Delivery', midX + 136, gridY + 3);
 
-      // 3. MAIN ITEM TABLE GRID (Y = 215 to 485)
-      const tableTop = 215;
+      // 3. MAIN ITEM TABLE GRID (Y = 206 to 476)
+      const tableTop = headerBoxTop + headerBoxHeight; // 206
       const tableHeight = 270;
-      const tableBottom = tableTop + tableHeight;
+      const tableBottom = tableTop + tableHeight; // 476
 
       // Outer border box for table
       doc.rect(startX, tableTop, totalWidth, tableHeight).stroke();
 
-      // Column Header Heights
+      // Column Header Height
       const headerRowHeight = 20;
       doc.rect(startX, tableTop, totalWidth, headerRowHeight).fillAndStroke(lightGray, black);
 
-      // Column Definitions: [Name, Width, Align]
-      // Sl(25), Description(220), HSN(55), Quantity(45), Rate(60), per(30), Amount(90)
+      // Column Positions
       const colX = {
         sl: startX,          // 35
         desc: startX + 25,    // 60
@@ -278,21 +274,21 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       doc.font('Helvetica').text(`${halfGstPct} %`, colX.per - 25, itemY, { width: 50, align: 'right' });
       doc.font('Helvetica-Bold').text(formatNum(sgst), colX.amt, itemY, { width: 85, align: 'right' });
 
-      // Table Footer Total Row (Y = 465 to 485)
+      // Table Footer Total Row (Y = 456 to 476)
       doc.rect(startX, gridBottom, totalWidth, totalRowHeight).fillAndStroke(lightGray, black);
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor(black);
       doc.text('Total', colX.desc - 30, gridBottom + 5, { width: 40, align: 'right' });
       doc.text(`${totalQuantity} Pcs`, colX.qty, gridBottom + 5, { width: 45, align: 'center' });
       doc.text(`INR ${formatNum(grandTotal)}`, colX.amt - 35, gridBottom + 5, { width: 120, align: 'right' });
 
-      // 4. AMOUNT CHARGEABLE IN WORDS (Y = 485 to 510)
+      // 4. AMOUNT CHARGEABLE IN WORDS (Y = 476 to 501)
       const wordsBoxTop = tableBottom;
       const wordsBoxHeight = 25;
       doc.rect(startX, wordsBoxTop, totalWidth, wordsBoxHeight).stroke();
       doc.font('Helvetica').fontSize(7.5).fillColor(gray).text('Amount Chargeable (in words)', startX + 6, wordsBoxTop + 3);
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor(black).text(numberToWordsINR(grandTotal), startX + 6, wordsBoxTop + 13);
 
-      // 5. HSN/SAC TAX BREAKDOWN TABLE (Y = 510 to 575)
+      // 5. HSN/SAC TAX BREAKDOWN TABLE (Y = 501 to 566)
       const hsnTop = wordsBoxTop + wordsBoxHeight;
       const hsnHeight = 65;
       doc.rect(startX, hsnTop, totalWidth, hsnHeight).stroke();
@@ -301,7 +297,6 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       doc.rect(startX, hsnTop, totalWidth, 18).fillAndStroke(lightGray, black);
       doc.font('Helvetica-Bold').fontSize(7).fillColor(black);
 
-      // Columns: HSN/SAC(70), Taxable Value(90), Central Tax(110), State Tax(110), Total Tax(145)
       const hsnCol = { hsn: startX, val: startX + 70, cgst: startX + 160, sgst: startX + 270, tot: startX + 380 };
 
       doc.text('HSN/SAC', hsnCol.hsn, hsnTop + 5, { width: 70, align: 'center' });
@@ -335,13 +330,13 @@ const generateInvoicePDF = (invoice, order, client, setting, filePath) => {
       doc.text(formatNum(sgst), hsnCol.sgst, hsnTotalY + 5, { width: 110, align: 'center' });
       doc.text(formatNum(totalGst), hsnCol.tot, hsnTotalY + 5, { width: 140, align: 'right' });
 
-      // 6. TAX AMOUNT IN WORDS (Y = 575 to 595)
+      // 6. TAX AMOUNT IN WORDS (Y = 566 to 586)
       const taxWordsY = hsnTop + hsnHeight;
       doc.rect(startX, taxWordsY, totalWidth, 20).stroke();
       doc.font('Helvetica').fontSize(7.5).fillColor(gray).text('Tax Amount (in words) :', startX + 6, taxWordsY + 5);
       doc.font('Helvetica-Bold').fontSize(8).fillColor(black).text(numberToWordsINR(totalGst), startX + 110, taxWordsY + 5);
 
-      // 7. FOOTER DECLARATION & AUTHORISED SIGNATORY (Y = 595 to 680)
+      // 7. FOOTER DECLARATION & AUTHORISED SIGNATORY (Y = 586 to 666)
       const footerBoxY = taxWordsY + 20;
       const footerBoxHeight = 80;
       doc.rect(startX, footerBoxY, totalWidth, footerBoxHeight).stroke();
