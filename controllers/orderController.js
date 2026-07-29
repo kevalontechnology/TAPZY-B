@@ -89,7 +89,7 @@ const getOrderById = async (req, res, next) => {
   }
 };
 
-// @desc Create new Order (Calculates exact item GST, net taxable amount, and grand total)
+// @desc Create new Order (Auto-completes 0/- bill amount orders as Paid/Success)
 // @route POST /api/orders
 const createOrder = async (req, res, next) => {
   try {
@@ -131,7 +131,6 @@ const createOrder = async (req, res, next) => {
     const discountVal = Number(discount) || 0;
     const taxableTotal = Math.max(0, subTotal - discountVal);
 
-    // Calculate exact GST tax on net taxable value
     let totalGst = 0;
     for (const item of formattedItems) {
       const ratio = subTotal > 0 ? item.subtotal / subTotal : 0;
@@ -142,6 +141,10 @@ const createOrder = async (req, res, next) => {
 
     const grandTotal = taxableTotal + totalGst;
     const orderNumber = await generateOrderNumber();
+
+    // Auto mark 0/- bill amount orders as Paid
+    const isZeroAmount = grandTotal <= 0;
+    const initialPaymentStatus = isZeroAmount ? 'Paid' : 'Pending';
 
     const order = await Order.create({
       orderNumber,
@@ -155,13 +158,14 @@ const createOrder = async (req, res, next) => {
       notes: notes || '',
       deliveryDate: deliveryDate || null,
       status: 'Pending Approval',
+      paymentStatus: initialPaymentStatus,
     });
 
     await logActivity({
       user: req.user._id,
       module: 'Order Management',
       action: 'Create Order',
-      description: `Created order ${orderNumber} for client ${client.companyName} (Grand Total: ₹${grandTotal.toFixed(2)})`,
+      description: `Created order ${orderNumber} for client ${client.companyName} (Grand Total: ₹${grandTotal.toFixed(2)}, Payment Status: ${initialPaymentStatus})`,
     });
 
     await sendNotification({
@@ -182,7 +186,7 @@ const createOrder = async (req, res, next) => {
   }
 };
 
-// @desc Update Order Status (Approve / Deduct Stock / Cancel / Refund)
+// @desc Update Order Status
 // @route PUT /api/orders/:id/status
 const updateOrderStatus = async (req, res, next) => {
   try {
